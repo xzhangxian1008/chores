@@ -31,6 +31,34 @@ dev_tiflash_binary_directory = "/data2/xzx/tiup_deploy/dev/tiflash-6009/bin/tifl
 
 tmp_cmd = []
 
+class TiupCmd:
+    def __init__(self, argv):
+        self.argv = argv
+
+    def execute(self):
+        cmd = "tiup "
+        if argv[0] == "c":
+            cmd += "cluster "
+        elif argv[0] == "b":
+            cmd += "bench "
+        
+        
+        pass
+
+class CpCmd:
+    def __init__(self, argv):
+        self.argv = argv
+
+    def execute(self):
+        pass
+
+class TmpCmd:
+    def __init__(self, argv):
+        self.argv = argv
+
+    def execute(self):
+        pass
+
 # tu: tiup
 #   - c: cluster
 #   - b: bench
@@ -42,8 +70,19 @@ class Cmd:
     def __init__(self, argv):
         self.argv = argv
 
+    def execute(self):
+        op = self.argv[0]
+        if op == "tu":
+            cmd = TiupCmd(argv[1:])
+        elif op == "cp":
+            cmd = CpCmd(argv[1:])
+        elif op.isdigit():
+            cmd = TmpCmd(argv[1:])
+
+
 if __name__ == "__main__":
     argv = sys.argv[1:]
+    if len(argv) == 0:
+        raise Exception("arg num is 0")
     print(sys.argv)
     print(argv)
-    pass
