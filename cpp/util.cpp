@@ -4,4 +4,6 @@
 
 void log__() { cout << endl; }
 
-using Ptr = std::unique_lock<int>;
+void Noisy::func() noexcept {
+    PRINT("func");
+}

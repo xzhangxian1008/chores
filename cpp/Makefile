@@ -4,12 +4,13 @@ HEAD_FILES = util.h Stopwatch.h concurrent.h
 OBJ_FILES = util.o main.o
 SOURCE_FILES = util.cpp main.cpp
 OPTIMIZE = -O0 -g
+# OPTIMIZE = -O3
 COMPILER = clang++
 LINK_LIBS = -lpthread -lre2
 
 all: m
 
-m: main util 
+m: main util
 	${COMPILER} ${OBJ_FILES} ${STD_VERSION} ${LINK_LIBS} ${-DMY_ENV} -o m ${OPTIMIZE}
 
 main: main.cpp ${HEAD_FILES}

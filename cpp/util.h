@@ -87,7 +87,7 @@ template<typename T>
 void printVec(const std::vector<T>& v) {
     for (auto &item : v)
         std::cout << item << " ";
-    
+
     std::cout << std::endl;
 }
 
@@ -95,7 +95,7 @@ template<typename T>
 void printDeq(const std::deque<T>& dq) {
     for (auto &item : dq)
         std::cout << item << " ";
-    
+
     std::cout << std::endl;
 }
 
@@ -161,5 +161,6 @@ struct Noisy {
     Noisy(const Noisy&) { std::cout << "copy-constructed\n"; }
     Noisy(Noisy&&) { std::cout << "move-constructed\n"; }
     ~Noisy() { std::cout << "destructed at " << this << '\n'; }
-};
 
+    void func() noexcept;
+};
