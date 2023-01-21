@@ -1,5 +1,5 @@
-# cpp_proj/build
-# cpp/build
-# cpp/*.o
-# cpp/core*
-# cpp/m
+cpp_proj/build
+cpp/build
+cpp/*.o
+cpp/core*
+cpp/m
