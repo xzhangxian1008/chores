@@ -15,9 +15,11 @@ tiflash_binary_name = "tiflash"
 tiflash_proxy_name = "libtiflash_proxy.so"
 tiflash_gmssl_name = "libgmssld.so.3"
 
-tiflash_src_build_directory = "/data2/xzx/tiflash/build"
+mode = "release" # release or debug
+
+tiflash_src_build_directory = "/data2/xzx/tiflash/build-%s" % mode
 tiflash_src_binary_directory = "%s/dbms/src/Server" % tiflash_src_build_directory
-tiflash_src_proxy_directory = "%s/dbms/contrib/tiflash-proxy-cmake/debug" % tiflash_src_build_directory
+tiflash_src_proxy_directory = "%s/contrib/tiflash-proxy-cmake/%s" % (tiflash_src_build_directory, mode)
 tiflash_src_gmssl_directory = "%s/contrib/GmSSL/lib" % tiflash_src_build_directory
 
 tiflash_src_binary_binary = "%s/%s" % (tiflash_src_binary_directory, tiflash_binary_name)
@@ -27,21 +29,34 @@ tiflash_src_gmssl_binary = "%s/%s" % (tiflash_src_gmssl_directory, tiflash_gmssl
 cls_tiflash_patch_directory = "/data2/xzx/tmp/patches/cls"
 cls_tiflash_patch_binary_directory = "/data2/xzx/tmp/patches/cls/tiflash"
 
-dev_tiflash_binary_directory = "/data2/xzx/tiup_deploy/dev/tiflash-6009/bin/tiflash"
+dev_tiflash_bin_directory = "/data2/xzx/tiup_deploy/dev/tiflash-6009/bin/tiflash"
+dev_tiflash_log_directory = "/data2/xzx/tiup_deploy/dev/tiflash-6009/log"
+dev_tiflash_conf_directory = "/data2/xzx/tiup_deploy/dev/tiflash-6009/conf"
 
-tmp_cmd = []
+cls_tiflash_bin_directory = "/data2/xzx/tiup_deploy/cls/tiflash-7003/bin/tiflash"
+cls_tiflash_log_directory = "/data2/xzx/tiup_deploy/cls/tiflash-7003/log"
+cls_tiflash_conf_directory = "/data2/xzx/tiup_deploy/cls/tiflash-7003/conf"
+
+cp_build_debug_to_cls = "cp /data2/xzx/tiflash/build-debug/dbms/src/Server/tiflash /data2/xzx/tmp/patches/cls/tiflash && cp /data2/xzx/tiflash/build-debug/contrib/tiflash-proxy-cmake/debug/libtiflash_proxy.so /data2/xzx/tmp/patches/cls/tiflash"
+
+compress_cls_tf = "cd /data2/xzx/tmp/patches/cls && tar -czvf t.tar.gz tiflash/"
+cd_log_dir = "cd /data2/xzx/tiup_deploy/cls/tiflash-7003/log && rm *"
+
+tmp_cmd = [compress_cls_tf, cd_log_dir, "sudo lsof -i:7003", cp_build_debug_to_cls]
 
 class TiupCmd:
     def __init__(self, argv):
         self.argv = argv
 
     def execute(self):
-        cmd = "tiup "
+        cmd = "tiup"
         if self.argv[0] == "c":
-            cmd += "cluster"
+            cmd = "%s cluster" % cmd
             self.__processCluster(cmd, self.argv[1:])
         elif self.argv[0] == "b":
-            cmd += "bench"
+            cmd += "%s bench" % cmd
+        else:
+            raise Exception("tiup: only support 'c'(cluster) and 'b'(bench)")
 
     def __convertRoleAbbrToFullName(self, abbr_role):
         if abbr_role.lower() == "tf":
@@ -65,6 +80,7 @@ class TiupCmd:
 
     # l: tiup cluster list
     # d: tiup cluster display {cluster_name}
+    # ds: tiup cluster destroy {cluster_name}
     # p: tiup cluster patch {cluster_name} {patch_file} -R {role}
     #    (if role is not provided, it's set to tiflash by default)
     # st: tiup cluster start {cluster_name} [-R {role}]
@@ -73,7 +89,8 @@ class TiupCmd:
         op = argv[0]
         if op == "l":
             # tiup cluster list
-            cmd += "list"
+            cmd = "%s list" % cmd
+            print(cmd)
             os.system(cmd)
         elif op == "d":
             # tiup cluster display {cluster_name}
@@ -87,6 +104,11 @@ class TiupCmd:
         elif op == "sp":
             # tiup cluster stop {cluster_name} [-R {role}]
             self.__processClusterStop(cmd, argv)
+        elif op =="ds":
+            # tiup cluster destroy {cluster_name}
+            self.__processClusterDestroy(cmd, argv)
+        else:
+            raise Exception("Only support 'l', 'd', 'p', 'st', 'sp'")
 
     def __processClusterPatch(self, cmd, argv):
         cluster_name = argv[1]
@@ -98,7 +120,14 @@ class TiupCmd:
         os.system(cmd)
 
     def __processClusterDisplay(self, cmd, argv):
-        cmd = "%s display %s" % (cmd, argv[1])
+        self.__processClusterSingleParm(cmd, "display", argv[1])
+
+    def __processClusterDestroy(self, cmd, argv):
+        self.__processClusterSingleParm(cmd, "destroy", argv[1])
+
+    def __processClusterSingleParm(self, cmd, op, arg):
+        cmd = "%s %s %s" % (cmd, op, arg)
+        print(cmd)
         os.system(cmd)
 
     def __processClusterStart(self, cmd, argv):
@@ -115,23 +144,37 @@ class TiupCmd:
             cmd = "%s %s %s -R %s" % (cmd, op, cluster_name, self.__convertRoleAbbrToFullName(argv[2]))
         else:
             raise Exception("Invalid argv length")
-        print(cmd)
-        # os.system(cmd)
+        os.system(cmd)
 
-
+# df: cluster name: dev, role: tiflash
+# cf: cluster name: cls, role: tiflash
 class CpCmd:
     def __init__(self, argv):
         self.argv = argv
 
     def execute(self):
-        pass
+        arg = self.argv[0]
+        if arg == "df":
+            df_cmd = "cp %s %s && cp %s %s" % (tiflash_src_binary_binary, dev_tiflash_bin_directory, tiflash_src_proxy_binary, dev_tiflash_bin_directory)
+            print(df_cmd)
+            os.system(df_cmd)
+        elif arg == "cf":
+            cf_cmd = "cp %s %s && cp %s %s" % (tiflash_src_binary_binary, cls_tiflash_patch_binary_directory, tiflash_src_proxy_binary, cls_tiflash_patch_binary_directory)
+            print(cf_cmd)
+            os.system(cf_cmd)
+        else:
+            raise Exception("Invalid arg for CpCmd")
 
 class TmpCmd:
     def __init__(self, argv):
         self.argv = argv
 
     def execute(self):
-        pass
+        arg = self.argv[0]
+        idx = int(arg)
+        if idx >= len(tmp_cmd):
+            raise Exception("Can't find this temporary cmd")
+        os.system(tmp_cmd[idx])
 
 # tu: tiup
 #   - c: cluster
@@ -145,23 +188,32 @@ class Cmd:
         self.argv = argv
 
     def execute(self):
+        global mode
+
         op = self.argv[0]
         if op == "tu":
             cmd = TiupCmd(argv[1:])
             cmd.execute()
-        elif op == "cp":
+        elif op == "cpd":
             cmd = CpCmd(argv[1:])
+            if mode != "debug":
+                raise Exception("mode != debug")
+            cmd.execute()
+        elif op == "cpr":
+            cmd = CpCmd(argv[1:])
+            if mode != "release":
+                raise Exception("mode != release")
             cmd.execute()
         elif op.isdigit():
-            cmd = TmpCmd(argv[1:])
+            cmd = TmpCmd(argv)
             cmd.execute()
+        else:
+            raise Exception("Only support 'tu', 'cp', digital")
 
 
 if __name__ == "__main__":
     argv = sys.argv[1:]
     if len(argv) == 0:
         raise Exception("arg num is 0")
-    # print(sys.argv)
-    # print(argv)
     cmd = Cmd(argv)
     cmd.execute()
