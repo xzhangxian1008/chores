@@ -2,13 +2,7 @@ import os
 import sys
 
 # Tasks:
-#   - start/stop a cluster or start/stop a component of a cluster
-#   - copy tiflash binaries to cls cluster's patch directory and do the patching operation.
-#   - copy tiflash binaries from cls directory to cls cluster's patch directory
-#   - copy tiflash binaries to dev cluster
 #   - copy tidb/tikv binaries to cls cluster's patch directory and do the patching operation.(not emergency)
-#   - go to tiflash bin/log/conf directory
-#   - start/stop tiflash/tidb/tikv
 
 tiflash_tar_name = "tiflash-nightly-linux-amd64.tar.gz"
 tiflash_binary_name = "tiflash"
@@ -85,6 +79,7 @@ class TiupCmd:
     #    (if role is not provided, it's set to tiflash by default)
     # st: tiup cluster start {cluster_name} [-R {role}]
     # sp: tiup cluster stop {cluster_name} [-R {role}]
+    # rt: tiup cluster restart {cluster_name} [-R {role}]
     def __processCluster(self, cmd, argv):
         op = argv[0]
         if op == "l":
@@ -104,7 +99,10 @@ class TiupCmd:
         elif op == "sp":
             # tiup cluster stop {cluster_name} [-R {role}]
             self.__processClusterStop(cmd, argv)
-        elif op =="ds":
+        elif op == "rt":
+            # tiup cluster restart {cluster_name} [-R {role}]
+            self.__processClusterRestart(cmd, argv)
+        elif op == "ds":
             # tiup cluster destroy {cluster_name}
             self.__processClusterDestroy(cmd, argv)
         else:
@@ -131,12 +129,15 @@ class TiupCmd:
         os.system(cmd)
 
     def __processClusterStart(self, cmd, argv):
-        self.__processClusterStartOrStop(cmd, "start", argv)
+        self.__processClusterStartOrStopOrRestart(cmd, "start", argv)
 
     def __processClusterStop(self, cmd, argv):
-        self.__processClusterStartOrStop(cmd, "stop", argv)
+        self.__processClusterStartOrStopOrRestart(cmd, "stop", argv)
 
-    def __processClusterStartOrStop(self, cmd, op, argv):
+    def __processClusterRestart(self, cmd, argv):
+        self.__processClusterStartOrStopOrRestart(cmd, "restart", argv)
+
+    def __processClusterStartOrStopOrRestart(self, cmd, op, argv):
         cluster_name = argv[1]
         if len(argv) == 2:
             cmd = "%s %s %s" % (cmd, op, cluster_name)
