@@ -9,16 +9,16 @@ tiflash_binary_name = "tiflash"
 tiflash_proxy_name = "libtiflash_proxy.so"
 tiflash_gmssl_name = "libgmssld.so.3"
 
-mode = "release" # release or debug
+mode = "debug" # release or debug
 
-tiflash_src_build_directory = "/data2/xzx/tiflash/build-%s" % mode
-tiflash_src_binary_directory = "%s/dbms/src/Server" % tiflash_src_build_directory
-tiflash_src_proxy_directory = "%s/contrib/tiflash-proxy-cmake/%s" % (tiflash_src_build_directory, mode)
-tiflash_src_gmssl_directory = "%s/contrib/GmSSL/lib" % tiflash_src_build_directory
+tiflash_src_build_directory = ""
+tiflash_src_binary_directory = ""
+tiflash_src_proxy_directory = ""
+tiflash_src_gmssl_directory = ""
 
-tiflash_src_binary_binary = "%s/%s" % (tiflash_src_binary_directory, tiflash_binary_name)
-tiflash_src_proxy_binary = "%s/%s" % (tiflash_src_proxy_directory, tiflash_proxy_name)
-tiflash_src_gmssl_binary = "%s/%s" % (tiflash_src_gmssl_directory, tiflash_gmssl_name)
+tiflash_src_binary_binary = ""
+tiflash_src_proxy_binary = ""
+tiflash_src_gmssl_binary = ""
 
 cls_tiflash_patch_directory = "/data2/xzx/tmp/patches/cls"
 cls_tiflash_patch_binary_directory = "/data2/xzx/tmp/patches/cls/tiflash"
@@ -31,12 +31,36 @@ cls_tiflash_bin_directory = "/data2/xzx/tiup_deploy/cls/tiflash-7003/bin/tiflash
 cls_tiflash_log_directory = "/data2/xzx/tiup_deploy/cls/tiflash-7003/log"
 cls_tiflash_conf_directory = "/data2/xzx/tiup_deploy/cls/tiflash-7003/conf"
 
-cp_build_debug_to_cls = "cp /data2/xzx/tiflash/build-debug/dbms/src/Server/tiflash /data2/xzx/tmp/patches/cls/tiflash && cp /data2/xzx/tiflash/build-debug/contrib/tiflash-proxy-cmake/debug/libtiflash_proxy.so /data2/xzx/tmp/patches/cls/tiflash"
+tmp_cmd = []
 
-compress_cls_tf = "cd /data2/xzx/tmp/patches/cls && tar -czvf t.tar.gz tiflash/"
-cd_log_dir = "cd /data2/xzx/tiup_deploy/cls/tiflash-7003/log && rm *"
+def initParam():
+    global tiflash_src_build_directory
+    global tiflash_src_binary_directory
+    global tiflash_src_proxy_directory
+    global tiflash_src_gmssl_directory
+    global tiflash_src_binary_binary
+    global tiflash_src_proxy_binary
+    global tiflash_src_gmssl_binary
 
-tmp_cmd = [compress_cls_tf, cd_log_dir, "sudo lsof -i:7003", cp_build_debug_to_cls]
+    if mode == "debug":
+        tiflash_src_build_directory = "/data2/xzx/tiflash/build"
+    elif mode == "release":
+        tiflash_src_build_directory = "/data2/xzx/tiflash/build-release"
+    else:
+        raise Exception("Invalid mode")
+
+    tiflash_src_binary_directory = "%s/dbms/src/Server" % tiflash_src_build_directory
+    tiflash_src_proxy_directory = "%s/contrib/tiflash-proxy-cmake/%s" % (tiflash_src_build_directory, mode)
+    tiflash_src_gmssl_directory = "%s/contrib/GmSSL/lib" % tiflash_src_build_directory
+
+    tiflash_src_binary_binary = "%s/%s" % (tiflash_src_binary_directory, tiflash_binary_name)
+    tiflash_src_proxy_binary = "%s/%s" % (tiflash_src_proxy_directory, tiflash_proxy_name)
+    tiflash_src_gmssl_binary = "%s/%s" % (tiflash_src_gmssl_directory, tiflash_gmssl_name)
+
+
+def init():
+    initParam()
+
 
 class TiupCmd:
     def __init__(self, argv):
@@ -216,5 +240,6 @@ if __name__ == "__main__":
     argv = sys.argv[1:]
     if len(argv) == 0:
         raise Exception("arg num is 0")
+    init()
     cmd = Cmd(argv)
     cmd.execute()

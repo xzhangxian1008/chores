@@ -1,0 +1,36 @@
+# .bashrc
+
+alias ..='cd ..'
+alias s='./s.sh'
+alias c='clear'
+
+#alias msq='mysql --host 127.0.0.1 --port 6003 -u root'
+#alias msqc='mysql --host 127.0.0.1 --port 6003 -u root --column_type-info'
+alias mqd='mysql --host 172.16.4.99 --port 6003 -u root'
+alias mqdc='mysql --host 172.16.4.99 --port 6003 -u root --column_type-info'
+alias mqc='mysql --host 172.16.4.99 --port 7001 -u root'
+alias mqp='mysql --host 172.16.4.97 --port 7001 -u root'
+
+alias ho='cd /data2/xzx' # go to the actual home
+alias tpdir='cd /data2/xzx/tiup_deploy/dev' # go to tiup's dev cluster directory
+alias tptif='cd /data2/xzx/tiup_deploy/dev/tiflash-6009/bin/tiflash' # go to tiip's tiflash bin
+
+alias ptf='tiup cluster patch cls /data2/xzx/tiup_deploy/cls/patch_tiup/tiflash-nightly-linux-amd64.tar.gz -R tiflash' # patch tiflash to cls cluster
+
+alias p='python3 /data2/xzx/chores/dev_tiflash_tools.py'
+
+#alias updis='tiup cluster display dev'
+#alias upstop='tiup cluster stop dev -N 127.0.0.1:6009'
+#alias upstart='tiup cluster start dev -N 127.0.0.1:6009'
+alias updis='tiup cluster display dev'
+alias upstop='tiup cluster stop dev -R tiflash'
+alias upstart='tiup cluster start dev -R tiflash'
+
+alias stoptd='tiup cluster stop dev -R tidb'
+alias starttd='tiup cluster start dev -R tidb'
+alias startkv='export LD_LIBRARY_PATH=/home/xzx/usr/lib && tiup cluster start dev -N 127.0.0.1:6006 && tiup cluster start dev -N 127.0.0.1:6007 && tiup cluster start dev -N 127.0.0.1:6008'
+alias stopkv='tiup cluster stop dev -N 127.0.0.1:6006 && tiup cluster stop dev -N 127.0.0.1:6007 && tiup cluster stop dev -N 127.0.0.1:6008'
+alias tport='sudo lsof -i:6003'
+alias tc='tiup cluster'
+
+alias patd='cd /data2/xzx/tmp/patches/cls'
