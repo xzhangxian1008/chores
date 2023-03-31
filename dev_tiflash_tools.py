@@ -9,7 +9,8 @@ tiflash_binary_name = "tiflash"
 tiflash_proxy_name = "libtiflash_proxy.so"
 tiflash_gmssl_name = "libgmssld.so.3"
 
-mode = "debug" # release or debug
+mode = "release" # release or debug
+# mode = "debug" # release or debug
 
 tiflash_src_build_directory = ""
 tiflash_src_binary_directory = ""
@@ -33,7 +34,7 @@ cls_tiflash_conf_directory = "/data2/xzx/tiup_deploy/cls/tiflash-7003/conf"
 
 tmp_cmd = []
 
-def initParam():
+def initParams():
     global tiflash_src_build_directory
     global tiflash_src_binary_directory
     global tiflash_src_proxy_directory
@@ -59,7 +60,7 @@ def initParam():
 
 
 def init():
-    initParam()
+    initParams()
 
 
 class TiupCmd:
@@ -180,7 +181,7 @@ class CpCmd:
     def execute(self):
         arg = self.argv[0]
         if arg == "df":
-            df_cmd = "cp %s %s && cp %s %s" % (tiflash_src_binary_binary, dev_tiflash_bin_directory, tiflash_src_proxy_binary, dev_tiflash_bin_directory)
+            df_cmd = "cp %s %s && cp %s %s && cp %s %s" % (tiflash_src_binary_binary, dev_tiflash_bin_directory, tiflash_src_proxy_binary, dev_tiflash_bin_directory, tiflash_src_gmssl_binary, dev_tiflash_bin_directory)
             print(df_cmd)
             os.system(df_cmd)
         elif arg == "cf":
