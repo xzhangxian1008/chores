@@ -3,7 +3,8 @@ from matplotlib import pyplot as plt
 
 file = "bench_result"
 query_num = 43
-results = []
+ch_results = []
+tiup_tpch_results = {}
 
 interval = [10, 50, 200, 500, 1000]
 
@@ -76,6 +77,9 @@ class QueryInfo:
         self.id = id
         self.times = times
 
+    def addTime(self, time):
+        self.times.append(time)
+
     def getAverageTime(self):
         time_sum = 0
         for time in self.times:
@@ -94,6 +98,9 @@ class QueryInfo:
 
     def getInfoMin(self):
         return "Q%d: %f" % (self.id, self.getMinTime())
+    
+    def getAllInfo(self):
+        return "Q%d: %.2f %.2f" % (self.id, self.getMinTime(), self.getAverageTime())
 
 def printQueryInfosAvg(infos):
     sum = 0
@@ -109,14 +116,41 @@ def printQueryInfosMin(infos):
         sum += info.getMinTime()
     print("Sum: %f" % sum)
 
-def analyze():
+def analyzeTiUPTPCH(file_name):
+    with open(file_name, 'r') as f:
+        lines = f.readlines()
+        analyzeTiUPTPCHImpl(lines)
+
+def analyzeTiUPTPCHImpl(lines):
+    for data in lines:
+        data = data[11:] # remove "[Current] Q"
+        data = data[:-2] # remove the last 's\n' characters
+        info = data.split()
+        info[0] = info[0][:-1]
+        q_num = int(info[0])
+        time = float(info[1])
+        if q_num in tiup_tpch_results:
+            tiup_tpch_results[q_num].addTime(time)
+        else:
+            tiup_tpch_results[q_num] = QueryInfo(q_num, [time])
+
+def printTiUPResults():
+    min_sum = 0
+    avg_sum = 0
+    for value in tiup_tpch_results.values():
+        print(value.getAllInfo())
+        min_sum = min_sum + value.getMinTime()
+        avg_sum = avg_sum + value.getAverageTime()
+    print("Sum: %.2f %.2f" % (min_sum, avg_sum))
+
+def analyzeCHBench():
     with open(file, 'r') as f:
         data = f.readlines()
         if len(data) != query_num:
             exit(-1)
-        analyzeImpl(data)
+        analyzeCHBenchImpl(data)
 
-def analyzeImpl(data):
+def analyzeCHBenchImpl(data):
     query_id = 0
     for item in data:
         query_id += 1
@@ -134,7 +168,7 @@ def analyzeImpl(data):
                 break
             else:
                 time += char
-        results.append(QueryInfo(query_id, times))
+        ch_results.append(QueryInfo(query_id, times))
 
 def paint(index):
     v1_data_list = LocalTunnelDataParser.parse(v1_data[index])
@@ -145,11 +179,9 @@ def paint(index):
     line_chart.paint("%s.png" % title)
 
 if __name__ == "__main__":
-    # paint(0)
-    # paint(1)
-    # paint(2)
-    # paint(3)
-    paint(4)
+    analyzeTiUPTPCH("tmp")
+    printTiUPResults()
 
-    # analyze()
+    # analyze ClickHouse bench data
+    # analyzeCHBench()
     # printQueryInfosMin(results)
