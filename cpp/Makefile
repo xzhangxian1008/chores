@@ -6,7 +6,8 @@ SOURCE_FILES = util.cpp main.cpp
 OPTIMIZE = -O0 -g
 # OPTIMIZE = -O3
 COMPILER = clang++
-LINK_LIBS = -lpthread -lre2
+# LINK_LIBS = -lpthread -lre2
+LINK_LIBS = -lpthread
 
 all: m
 

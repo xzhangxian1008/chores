@@ -58,9 +58,9 @@ using namespace std;
     DISALLOW_COPY(ClassName);             \
     DISALLOW_MOVE(ClassName)
 
-#define LOG(info) log__(__func__, __LINE__, info)
-#define PANIC(info) panic__(__func__, __LINE__, info)
-#define PRINT(...) print__(__VA_ARGS__)
+#define log(info) log__(__func__, __LINE__, info)
+#define panic(info) panic__(__func__, __LINE__, info)
+#define print(...) print__(__VA_ARGS__)
 
 void log__();
 
