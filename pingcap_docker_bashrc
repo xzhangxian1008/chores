@@ -8,9 +8,11 @@ alias mt='make tiflash -j35'
 alias mg='make gtests_dbms -j35'
 alias mb='make bench_dbms -j35'
 alias ..='cd ..'
+alias format='python3 format-diff.py --diff_from `git merge-base pingcap/master HEAD`'
 
 #export CCACHE_DIR='/home/ccache_cache'
 
+# 记得把 $GOPATH/bin 这个路径也加到 PATH 里面
 #export PATH="/home/cmake-3.24.0-rc1-linux-x86_64/bin":"/home/go/bin":"/home/git-2.9.5":$PATH
 #export GO111MODULE=on
 #export GOPROXY=https://goproxy.io
