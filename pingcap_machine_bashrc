@@ -42,19 +42,19 @@ alias tc='tiup cluster'
 
 alias patd='cd $prefix_path/tmp/patches/cls'
 
-export CCACHE_DIR='$prefix_path/ccache_cache'
+export CCACHE_DIR=$prefix_path/ccache_cache
 
 export GO111MODULE=on
 export GOPROXY=https://goproxy.io
 export GOPATH=$prefix_path/go/path
 
-export PATH='$prefix_path/go/path/bin':'$prefix_path/go/bin':'$prefix_path/bin':'/$prefix_path/env-tiflash/sysroot/bin':$PATH
-export LD_LIBRARY_PATH='$prefix_path/env-tiflash/sysroot/lib':'/$prefix_path/env-tiflash/sysroot/lib/x86_64-unknown-linux-gnu':$LD_LIBRARY_PATH
-export CPLUS_INCLUDE_PATH='$prefix_path/env-tiflash/sysroot/include/c++/v1':$CPLUS_INCLUDE_PATH
-export CC='$prefix_path/env-tiflash/sysroot/bin/clang'
-export CXX='$prefix_path/env-tiflash/sysroot/bin/clang++'
-export AR='$prefix_path/env-tiflash/sysroot/bin/llvm-ar'
-export OBJCOPY='$prefix_path/env-tiflash/sysroot/bin/llvm-objcopy'
-export AS='$prefix_path/env-tiflash/sysroot/bin/llvm-as'
-export LD='$prefix_path/env-tiflash/sysroot/bin/ld.lld'
-export CXXSTDLIB='c++'
+export PATH="$prefix_path/go/path/bin":"$prefix_path/go/bin":"$prefix_path/bin":"/$prefix_path/env-tiflash/sysroot/bin":$PATH
+export LD_LIBRARY_PATH="$prefix_path/env-tiflash/sysroot/lib":"$prefix_path/env-tiflash/sysroot/lib/x86_64-unknown-linux-gnu":$LD_LIBRARY_PATH
+export CPLUS_INCLUDE_PATH="$prefix_path/env-tiflash/sysroot/include/c++/v1":$CPLUS_INCLUDE_PATH
+export CC="$prefix_path/env-tiflash/sysroot/bin/clang"
+export CXX="$prefix_path/env-tiflash/sysroot/bin/clang++"
+export AR="$prefix_path/env-tiflash/sysroot/bin/llvm-ar"
+export OBJCOPY="$prefix_path/env-tiflash/sysroot/bin/llvm-objcopy"
+export AS="$prefix_path/env-tiflash/sysroot/bin/llvm-as"
+export LD="$prefix_path/env-tiflash/sysroot/bin/ld.lld"
+export CXXSTDLIB="c++"
