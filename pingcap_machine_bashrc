@@ -1,6 +1,6 @@
 # .bashrc
 
-prefix_path="/DATA/disk3/xzx"
+prefix_path="data3/xzx"
 
 alias ..='cd ..'
 alias s='./s.sh'
