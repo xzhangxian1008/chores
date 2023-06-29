@@ -9,8 +9,8 @@ tiflash_binary_name = "tiflash"
 tiflash_proxy_name = "libtiflash_proxy.so"
 tiflash_gmssl_name = "libgmssld.so.3"
 
-mode = "release" # release or debug
-# mode = "debug" # release or debug
+# mode = "release" # release or debug
+mode = "debug" # release or debug
 
 tiflash_src_build_directory = ""
 tiflash_src_binary_directory = ""
@@ -24,9 +24,9 @@ tiflash_src_gmssl_binary = ""
 cls_tiflash_patch_directory = "/data3/xzx/tmp/patches/cls"
 cls_tiflash_patch_binary_directory = "/data3/xzx/tmp/patches/cls/tiflash"
 
-dev_tiflash_bin_directory = "/data3/xzx/tiup_deploy/dev/tiflash-7001/bin/tiflash"
-dev_tiflash_log_directory = "/data3/xzx/tiup_deploy/dev/tiflash-7001/log"
-dev_tiflash_conf_directory = "/data3/xzx/tiup_deploy/dev/tiflash-7001/conf"
+dev_tiflash_bin_directory = "/data3/xzx/tiup_deploy/dev/tiflash-7003/bin/tiflash"
+dev_tiflash_log_directory = "/data3/xzx/tiup_deploy/dev/tiflash-7003/log"
+dev_tiflash_conf_directory = "/data3/xzx/tiup_deploy/dev/tiflash-7003/conf"
 
 cls_tiflash_bin_directory = "/data3/xzx/tiup_deploy/cls/tiflash-7003/bin/tiflash"
 cls_tiflash_log_directory = "/data3/xzx/tiup_deploy/cls/tiflash-7003/log"
