@@ -21,16 +21,18 @@ tiflash_src_binary_binary = ""
 tiflash_src_proxy_binary = ""
 tiflash_src_gmssl_binary = ""
 
-cls_tiflash_patch_directory = "/data3/xzx/tmp/patches/cls"
-cls_tiflash_patch_binary_directory = "/data3/xzx/tmp/patches/cls/tiflash"
+prefix_path = "/DATA/disk3/xzx"
 
-dev_tiflash_bin_directory = "/data3/xzx/tiup_deploy/dev/tiflash-7003/bin/tiflash"
-dev_tiflash_log_directory = "/data3/xzx/tiup_deploy/dev/tiflash-7003/log"
-dev_tiflash_conf_directory = "/data3/xzx/tiup_deploy/dev/tiflash-7003/conf"
+cls_tiflash_patch_directory = "%s/tmp/patches/cls" % prefix_path
+cls_tiflash_patch_binary_directory = "%s/tmp/patches/cls/tiflash" % prefix_path
 
-cls_tiflash_bin_directory = "/data3/xzx/tiup_deploy/cls/tiflash-7003/bin/tiflash"
-cls_tiflash_log_directory = "/data3/xzx/tiup_deploy/cls/tiflash-7003/log"
-cls_tiflash_conf_directory = "/data3/xzx/tiup_deploy/cls/tiflash-7003/conf"
+dev_tiflash_bin_directory = "%s/tiup_deploy/dev/tiflash-7003/bin/tiflash" % prefix_path
+dev_tiflash_log_directory = "%s/tiup_deploy/dev/tiflash-7003/log" % prefix_path
+dev_tiflash_conf_directory = "%s/tiup_deploy/dev/tiflash-7003/conf" % prefix_path
+
+cls_tiflash_bin_directory = "%s/tiup_deploy/cls/tiflash-7003/bin/tiflash" % prefix_path
+cls_tiflash_log_directory = "%s/tiup_deploy/cls/tiflash-7003/log" % prefix_path
+cls_tiflash_conf_directory = "%s/tiup_deploy/cls/tiflash-7003/conf" % prefix_path
 
 tmp_cmd = []
 
@@ -44,9 +46,9 @@ def initParams():
     global tiflash_src_gmssl_binary
 
     if mode == "debug":
-        tiflash_src_build_directory = "/data3/xzx/tiflash/build"
+        tiflash_src_build_directory = "%s/tiflash/build" % prefix_path
     elif mode == "release":
-        tiflash_src_build_directory = "/data3/xzx/tiflash/build-release"
+        tiflash_src_build_directory = "%s/tiflash/build-release" % prefix_path
     else:
         raise Exception("Invalid mode")
 
