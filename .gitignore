@@ -3,3 +3,5 @@ cpp/build
 cpp/*.o
 cpp/core*
 cpp/m
+
+scripts/__pycache__
