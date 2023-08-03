@@ -2,15 +2,15 @@
 # # the deployments if a specific deployment value is missing.
 global:
   # # The user who runs the tidb cluster.
-  user: "xzx"
+  user: "root"
   # # group is used to specify the group name the user belong to,if it's not the same as user.
   # group: "tidb"
   # # SSH port of servers in the managed cluster.
   ssh_port: 22
   # # Storage directory for cluster deployment files, startup scripts, and configuration files.
-  deploy_dir: "/DATA/disk4/xzx/tiup_deploy/cls"
+  deploy_dir: "/DATA/disk3/xzx/tiup_deploy/cls"
   # # TiDB Cluster data storage directory
-  data_dir: "/DATA/disk4/xzx/tiup_deploy/cls/data"
+  data_dir: "/DATA/disk3/xzx/tiup_deploy/cls/data"
   # # Supported values: "amd64", "arm64" (default: "amd64")
   arch: "amd64"
   # # Resource Control is used to limit the resource of an instance.
@@ -104,7 +104,7 @@ tidb_servers:
 # # Server configs are used to specify the configuration of TiKV Servers.
 tikv_servers:
   # # The ip address of the TiKV Server.
-  - host: 10.2.12.124
+  - host: 10.2.12.125
     # # SSH port of the server.
     # ssh_port: 22
     # # TiKV Server communication port.
@@ -112,32 +112,32 @@ tikv_servers:
     # # Communication port for reporting TiKV Server status.
     status_port: 8204
     # # TiKV Server deployment file, startup script, configuration file storage directory.
-    deploy_dir: "/DATA/disk3/xzx/tiup_deploy/cls/tikv-8101"
+    deploy_dir: "/DATA/disk4/xzx/tiup_deploy/cls/tikv-8101"
     # # TiKV Server data storage directory.
-    data_dir: "/DATA/disk3/xzx/tiup_deploy/cls/data/tikv-8101"
+    data_dir: "/DATA/disk4/xzx/tiup_deploy/cls/data/tikv-8101"
     # # TiKV Server log file storage directory.
-    log_dir: "/DATA/disk3/xzx/tiup_deploy/cls/tikv-8101/log"
+    log_dir: "/DATA/disk4/xzx/tiup_deploy/cls/tikv-8101/log"
     # numa_node: "0"
     # # The following configs are used to overwrite the `server_configs.tikv` values.
     # config:
     #   log.level: warn
-  - host: 10.2.12.124
+  - host: 10.2.12.126
     # ssh_port: 22
     port: 8102
     status_port: 8205
-    deploy_dir: "/DATA/disk3/xzx/tiup_deploy/cls/tikv-8102"
-    data_dir: "/DATA/disk3/xzx/tiup_deploy/cls/data/tikv-8102"
-    log_dir: "/DATA/disk3/xzx/tiup_deploy/cls/tikv-8102/log"
+    deploy_dir: "/DATA/disk4/xzx/tiup_deploy/cls/tikv-8102"
+    data_dir: "/DATA/disk4/xzx/tiup_deploy/cls/data/tikv-8102"
+    log_dir: "/DATA/disk4/xzx/tiup_deploy/cls/tikv-8102/log"
     # numa_node: "1"
     # config:
     #   log.level: warn
-  - host: 10.2.12.124
+  - host: 10.2.12.136
     # ssh_port: 22
     port: 8103
     status_port: 8206
-    deploy_dir: "/DATA/disk3/xzx/tiup_deploy/cls/tikv-8103"
-    data_dir: "/DATA/disk3/xzx/tiup_deploy/cls/data/tikv-8103"
-    log_dir: "/DATA/disk3/xzx/tiup_deploy/cls/tikv-8103/log"
+    deploy_dir: "/DATA/disk4/xzx/tiup_deploy/cls/tikv-8103"
+    data_dir: "/DATA/disk4/xzx/tiup_deploy/cls/data/tikv-8103"
+    log_dir: "/DATA/disk4/xzx/tiup_deploy/cls/tikv-8103/log"
     # numa_node: "0"
     # config:
     #   log.level: warn
@@ -150,6 +150,7 @@ tiflash_servers:
     # ssh_port: 22
     # # TiFlash TCP Service port.
     tcp_port: 7003
+    http_port: 8223
     # # TiFlash raft service and coprocessor service listening address.
     flash_service_port: 7200
     # # TiFlash Proxy service port.
@@ -173,6 +174,7 @@ tiflash_servers:
     # ssh_port: 22
     # # TiFlash TCP Service port.
     tcp_port: 7003
+    http_port: 8223
     # # TiFlash raft service and coprocessor service listening address.
     flash_service_port: 7200
     # # TiFlash Proxy service port.
@@ -196,6 +198,7 @@ tiflash_servers:
     # ssh_port: 22
     # # TiFlash TCP Service port.
     tcp_port: 7003
+    http_port: 8223
     # # TiFlash raft service and coprocessor service listening address.
     flash_service_port: 7200
     # # TiFlash Proxy service port.
