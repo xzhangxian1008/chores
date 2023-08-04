@@ -1,51 +1,46 @@
 # .bashrc
 
-prefix_path='/DATA/disk3/xzx'
+prefix_path="/DATA/disk3/xzx"
 
-alias sb='source ~/.bashrc'
-alias co='cd $prefix_path'
-alias ..='cd ..'
-alias mqd='mysql --host 10.2.12.124 --port 7001 -u root'
-alias mqdc='mysql --host 10.2.12.124 --port 7001 -u root --column_type-info'
-alias devtf='cd $prefix_path/tiup_deploy/dev/tiflash-7003'
-alias devtd='cd $prefix_path/tiup_deploy/dev/tidb-7001'
-alias dtfp='sudo lsof -i:7003'
-alias p='python3 $prefix_path/chores/dev_tiflash_tools.py'
-alias s='./s.sh'
-alias rmcc='rm CMakeCache.txt'
-alias mt='make tiflash -j35'
-alias mg='make gtests_dbms -j35'
-alias mtt='make tiflash -j60'
-alias mgg='make gtests_dbms -j60'
-alias format='python3 format-diff.py --diff_from `git merge-base pingcap/master HEAD`'
+alias sb="source ~/.bashrc"
+alias co="cd ${prefix_path}"
+alias ..="cd .."
+alias mqd="mysql --host 10.2.12.124 --port 7001 -u root"
+alias mqdc="mysql --host 10.2.12.124 --port 7001 -u root --column_type-info"
+alias mqc="mysql --host 10.2.12.124 --port 8001 -u root"
+alias mqcc="mysql --host 10.2.12.124 --port 8001 -u root --column_type-info"
+alias devtf="cd $prefix_path/tiup_deploy/dev/tiflash-7003"
+alias devtd="cd $prefix_path/tiup_deploy/dev/tidb-7001"
+alias dtfp="sudo lsof -i:7003"
+alias p="python3 $prefix_path/chores/dev_tiflash_tools.py"
+alias s="./s.sh"
+alias rmcc="rm CMakeCache.txt"
+alias mt="make tiflash -j35"
+alias mg="make gtests_dbms -j35"
+alias mtt="make tiflash -j60"
+alias mgg="make gtests_dbms -j60"
+alias format="python3 format-diff.py --diff_from `git merge-base pingcap/master HEAD`"
 
-#export PATH='$prefix_path/go/path/bin':'$prefix_path/go/bin':'$prefix_path/ccache-4.8.1-linux-x86_64':'$prefix_path/cmake-3.26.4/bin':'$prefix_path/bin':$PATH
-#export LD_LIBRARY_PATH='$prefix_path/llvm/lib':'$prefix_path/llvm/lib/x86_64-unknown-linux-gnu'
+#export PATH="$prefix_path/go/path/bin":"$prefix_path/go/bin":"$prefix_path/ccache-4.8.1-linux-x86_64":"$prefix_path/cmake-3.26.4/bin":"$prefix_path/bin":$PATH
+#export LD_LIBRARY_PATH="$prefix_path/llvm/lib":"$prefix_path/llvm/lib/x86_64-unknown-linux-gnu"
 
 . "$HOME/.cargo/env"
 
-
-#export CC='/usr/bin/gcc'
-#export CXX='/usr/bin/g++'
-
-export CCACHE_DIR=$prefix_path/ccache_cache
+export CCACHE_DIR="${prefix_path}/ccache_cache"
 
 export GO111MODULE=on
 export GOPROXY="https://goproxy.io"
-export GOPATH="$prefix_path/go/path"
+export GOPATH="${prefix_path}/go/path"
 
-export PATH="$prefix_path/go/path/bin":"$prefix_path/go/bin":"$prefix_path/bin":/DATA/disk3/xzx/env-tiflash/sysroot/bin:$PATH
-export OPENSSL_ROOT_DIR="$prefix_path/env-tiflash/sysroot"
-export LIBRARY_PATH="$prefix_path/env-tiflash/sysroot/lib":"$prefix_path/env-tiflash/sysroot/lib/x86_64-unknown-linux-gnu"
-export LD_LIBRARY_PATH="$prefix_path/env-tiflash/sysroot/lib":"$prefix_path/env-tiflash/sysroot/lib/x86_64-unknown-linux-gnu"
-#export LD_LIBRARY_PATH=""
-#export CPLUS_INCLUDE_PATH="$prefix_path/env-tiflash/sysroot/include/c++/v1":"$prefix_path/env-tiflash/sysroot/include/x86_64-unknown-linux-gnu/c++/v1/"
-export CPLUS_INCLUDE_PATH=""
-export CC="$prefix_path/env-tiflash/sysroot/bin/clang"
-export CXX="$prefix_path/env-tiflash/sysroot/bin/clang++"
-export AR="$prefix_path/env-tiflash/sysroot/bin/llvm-ar"
-export OBJCOPY="$prefix_path/env-tiflash/sysroot/bin/llvm-objcopy"
-export AS="$prefix_path/env-tiflash/sysroot/bin/llvm-as"
-export LD="$prefix_path/env-tiflash/sysroot/bin/ld.lld"
+export PATH="${prefix_path}/ccache-4.8.1-linux-x86_64":"${prefix_path}/cmake-3.26.4/bin":"${prefix_path}/go/path/bin":"${prefix_path}/go/bin":"${prefix_path}/bin":"${prefix_path}/llvm-15.0.0/bin":$PATH
+export OPENSSL_ROOT_DIR="${prefix_path}/env-tiflash/sysroot"
+export LIBRARY_PATH="${prefix_path}/llvm-15.0.0/lib":"${prefix_path}/llvm-15.0.0/lib/x86_64-unknown-linux-gnu"
+export LD_LIBRARY_PATH="${prefix_path}/llvm-15.0.0/lib":"${prefix_path}/llvm-15.0.0/lib/x86_64-unknown-linux-gnu"
+export CPLUS_INCLUDE_PATH="${prefix_path}/llvm-15.0.0/include/c++/v1":"${prefix_path}/llvm-15.0.0/include/x86_64-unknown-linux-gnu/c++/v1/"
+export CC="${prefix_path}/llvm-15.0.0/bin/clang"
+export CXX="${prefix_path}/llvm-15.0.0/bin/clang++"
+export AR="${prefix_path}/llvm-15.0.0/bin/llvm-ar"
+export OBJCOPY="${prefix_path}/llvm-15.0.0/bin/llvm-objcopy"
+export AS="${prefix_path}/llvm-15.0.0/bin/llvm-as"
+export LD="${prefix_path}/llvm-15.0.0/bin/ld.lld"
 export CXXSTDLIB="c++"
-export RUSTFLAGS="-C linker=/DATA/disk3/xzx/env-tiflash/tiflash-linker -C link-arg=-fuse-ld=lld"
