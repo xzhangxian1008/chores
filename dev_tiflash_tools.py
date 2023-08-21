@@ -9,6 +9,8 @@ tiflash_binary_name = "tiflash"
 tiflash_proxy_name = "libtiflash_proxy.so"
 tiflash_gmssl_name = "libgmssld.so.3"
 
+tidb_binary_name = "tidb-server-debug"
+
 # mode = "release" # release or debug
 mode = "debug" # release or debug
 
@@ -20,6 +22,10 @@ tiflash_src_gmssl_directory = ""
 tiflash_src_binary_binary = ""
 tiflash_src_proxy_binary = ""
 tiflash_src_gmssl_binary = ""
+
+tidb_binary_directory = "/DATA/disk3/xzx/tidb/bin"
+
+tidb_src_binary = ""
 
 prefix_path = "/DATA/disk3/xzx"
 
@@ -34,6 +40,8 @@ cls_tiflash_bin_directory = "%s/tiup_deploy/cls/tiflash-7003/bin/tiflash" % pref
 cls_tiflash_log_directory = "%s/tiup_deploy/cls/tiflash-7003/log" % prefix_path
 cls_tiflash_conf_directory = "%s/tiup_deploy/cls/tiflash-7003/conf" % prefix_path
 
+dev_tidb_bin_directory = "%s/tiup_deploy/dev/tidb-7001/bin" % prefix_path
+
 tmp_cmd = []
 
 def initParams():
@@ -44,6 +52,7 @@ def initParams():
     global tiflash_src_binary_binary
     global tiflash_src_proxy_binary
     global tiflash_src_gmssl_binary
+    global tidb_src_binary
 
     if mode == "debug":
         tiflash_src_build_directory = "%s/tiflash/build" % prefix_path
@@ -59,6 +68,8 @@ def initParams():
     tiflash_src_binary_binary = "%s/%s" % (tiflash_src_binary_directory, tiflash_binary_name)
     tiflash_src_proxy_binary = "%s/%s" % (tiflash_src_proxy_directory, tiflash_proxy_name)
     tiflash_src_gmssl_binary = "%s/%s" % (tiflash_src_gmssl_directory, tiflash_gmssl_name)
+
+    tidb_src_binary = "%s/%s" % (tidb_binary_directory, tidb_binary_name)
 
 
 def init():
@@ -176,6 +187,7 @@ class TiupCmd:
 
 # df: cluster name: dev, role: tiflash
 # cf: cluster name: cls, role: tiflash
+# dd: cluster name: dev, rolw: tidb
 class CpCmd:
     def __init__(self, argv):
         self.argv = argv
@@ -190,6 +202,10 @@ class CpCmd:
             cf_cmd = "cp %s %s && cp %s %s" % (tiflash_src_binary_binary, cls_tiflash_patch_binary_directory, tiflash_src_proxy_binary, cls_tiflash_patch_binary_directory)
             print(cf_cmd)
             os.system(cf_cmd)
+        elif arg == "dd":
+            dd_cmd = "cp %s %s/tidb-server" % (tidb_src_binary, dev_tidb_bin_directory)
+            print(dd_cmd)
+            os.system(dd_cmd)
         else:
             raise Exception("Invalid arg for CpCmd")
 
