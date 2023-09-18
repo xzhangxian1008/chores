@@ -2,7 +2,7 @@
 # # the deployments if a specific deployment value is missing.
 global:
   # # The user who runs the tidb cluster.
-  user: "xzx"
+  user: "root"
   # # group is used to specify the group name the user belong to,if it's not the same as user.
   # group: "tidb"
   # # SSH port of servers in the managed cluster.
