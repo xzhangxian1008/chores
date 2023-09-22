@@ -41,6 +41,7 @@ cls_tiflash_log_directory = "%s/tiup_deploy/cls/tiflash-7003/log" % prefix_path
 cls_tiflash_conf_directory = "%s/tiup_deploy/cls/tiflash-7003/conf" % prefix_path
 
 dev_tidb_bin_directory = "%s/tiup_deploy/dev/tidb-7001/bin" % prefix_path
+cls_tidb_bin_directory = "%s/tiup_deploy/cls/tidb-8001/bin" % prefix_path
 
 tmp_cmd = []
 
@@ -117,7 +118,7 @@ class TiupCmd:
     #    (if role is not provided, it's set to tiflash by default)
     # st: tiup cluster start {cluster_name} [-R {role}]
     # sp: tiup cluster stop {cluster_name} [-R {role}]
-    # rt: tiup cluster restart {cluster_name} [-R {role}]
+    # rs: tiup cluster restart {cluster_name} [-R {role}]
     def __processCluster(self, cmd, argv):
         op = argv[0]
         if op == "l":
@@ -137,7 +138,7 @@ class TiupCmd:
         elif op == "sp":
             # tiup cluster stop {cluster_name} [-R {role}]
             self.__processClusterStop(cmd, argv)
-        elif op == "rt":
+        elif op == "rs":
             # tiup cluster restart {cluster_name} [-R {role}]
             self.__processClusterRestart(cmd, argv)
         elif op == "ds":
@@ -204,6 +205,10 @@ class CpCmd:
             os.system(cf_cmd)
         elif arg == "dd":
             dd_cmd = "cp %s %s/tidb-server" % (tidb_src_binary, dev_tidb_bin_directory)
+            print(dd_cmd)
+            os.system(dd_cmd)
+        elif arg == "cd":
+            dd_cmd = "cp %s %s/tidb-server" % (tidb_src_binary, cls_tidb_bin_directory)
             print(dd_cmd)
             os.system(dd_cmd)
         else:
