@@ -6,13 +6,14 @@ import random
 import datetime
 import tpch
 import config
+from datetime import datetime
 from sql import Sql
 from sql import tpch_sqls
 from sql import tpch1_spill_sqls
 from sql import tpch10_spill_sqls
 
 tmp_sql = """
-SELECT REGEXP_REPLACE(Referer, '^https?://(?:www\.)?[^/]+/.*$', '1111') AS k, AVG(length(Referer)) AS l, COUNT(*) AS c, MIN(Referer) FROM hits WHERE Referer <> '' GROUP BY k HAVING COUNT(*) > 100000 ORDER BY l DESC LIMIT 25;
+explain analyze select l_orderkey from tpch10.lineitem group by l_orderkey having sum(l_quantity) > 300;
 """
 
 lock = threading.Lock()
@@ -29,6 +30,7 @@ def isTestFinished():
 
 # This function could handle errors raised by sqls and continue to run
 def runErrorSqls(run_sqls):
+    i = 0
     print("%s start..." % threading.current_thread().name)
     connection = pymysql.connect(host=config.target_addr, port=config.target_port, user=config.target_user, database=target_database, cursorclass=pymysql.cursors.DictCursor)
     isFirst = False
@@ -41,32 +43,21 @@ def runErrorSqls(run_sqls):
                     isFirst = True
                 idx = random.randint(1, len(run_sqls))
                 sql = run_sqls[idx].getSql()
+                start = time.time()
                 try:
                     cursor.execute(sql)
                 except Exception as e:
                     # print("Exception happens when executing query.", e)
                     pass
+                end = time.time()
+                print("%s: %d, execution's finish time: %s, elapsed time: %f" % (threading.current_thread().name, i, datetime.now(), end - start))
+                i += 1
 
                 if isTestFinished():
                     return
 
 tmp_sqls = [
-    """explain analyze SELECT
-  *
-FROM
-  `all_projects`
-WHERE
-  `lower` (`project_name`) LIKE 'project%'
-  OR `lower` (`token_address`) LIKE 'token%'
-  OR `lower` (`project_id`) LIKE 'project%' limit 10;""",
-  """explain analyze SELECT
-  `lower` (`address`),
-  `lower` (general)
-FROM
-  `matrix_address_labels`
-WHERE
-  `address` = 'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
-  AND (general = 'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX');"""
+    """explain analyze select l_orderkey from tpch10.lineitem group by l_orderkey having sum(l_quantity) > 300;"""
 ]
 
 def getSql():
@@ -190,6 +181,7 @@ def parseArgs():
     return args
 
 if __name__ == "__main__":
+    print("Start Time: ", datetime.now())
     args = parseArgs()
     thread_num = args.thread_num
     test_time = args.test_time
@@ -223,4 +215,5 @@ if __name__ == "__main__":
 
     # print("Total time: %f" % total_time)
     # print("Total queries: %d, QPS: %f" % (count, (count / (end - start))))
+    print("End Time: ", datetime.now())
     print("exit...")

@@ -1,5 +1,6 @@
 import os
 import sys
+from datetime import datetime
 
 # Tasks:
 #   - copy tidb/tikv binaries to cls cluster's patch directory and do the patching operation.(not emergency)
@@ -9,10 +10,11 @@ tiflash_binary_name = "tiflash"
 tiflash_proxy_name = "libtiflash_proxy.so"
 tiflash_gmssl_name = "libgmssld.so.3"
 
-tidb_binary_name = "tidb-server-debug"
+tidb_debug_binary_name = "tidb-server-debug"
+tidb_release_binary_name = "tidb-server"
 
-# mode = "release" # release or debug
-mode = "debug" # release or debug
+mode = "release" # release or debug
+# mode = "debug" # release or debug
 
 tiflash_src_build_directory = ""
 tiflash_src_binary_directory = ""
@@ -57,8 +59,11 @@ def initParams():
 
     if mode == "debug":
         tiflash_src_build_directory = "%s/tiflash/build" % prefix_path
+        tidb_src_binary = "%s/%s" % (tidb_binary_directory, tidb_debug_binary_name)
+        tidb_src_binary = "%s/%s" % (tidb_binary_directory, tidb_debug_binary_name)
     elif mode == "release":
         tiflash_src_build_directory = "%s/tiflash/build-release" % prefix_path
+        tidb_src_binary = "%s/%s" % (tidb_binary_directory, tidb_release_binary_name)
     else:
         raise Exception("Invalid mode")
 
@@ -70,7 +75,7 @@ def initParams():
     tiflash_src_proxy_binary = "%s/%s" % (tiflash_src_proxy_directory, tiflash_proxy_name)
     tiflash_src_gmssl_binary = "%s/%s" % (tiflash_src_gmssl_directory, tiflash_gmssl_name)
 
-    tidb_src_binary = "%s/%s" % (tidb_binary_directory, tidb_binary_name)
+
 
 
 def init():

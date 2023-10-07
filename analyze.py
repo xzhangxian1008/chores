@@ -98,7 +98,7 @@ class QueryInfo:
 
     def getInfoMin(self):
         return "Q%d: %f" % (self.id, self.getMinTime())
-    
+
     def getAllInfo(self):
         return "Q%d: %.2f %.2f" % (self.id, self.getMinTime(), self.getAverageTime())
 
