@@ -18,6 +18,9 @@ explain analyze select l_orderkey from tpch10.lineitem group by l_orderkey havin
 
 lock = threading.Lock()
 isShutdown = False
+maximum_time = -1
+minimum_time = 999999
+time_collection = []
 
 def isTestFinished():
     lock.acquire()
@@ -28,18 +31,44 @@ def isTestFinished():
     lock.release()
     return False
 
+def updateExecutionTime(exec_time):
+    global lock
+    global maximum_time
+    global minimum_time
+    global time_collection
+    lock.acquire()
+    if exec_time > maximum_time:
+        maximum_time = exec_time
+    if exec_time < minimum_time:
+        minimum_time = exec_time
+    time_collection.append(exec_time)
+    lock.release()
+
+def printExecutionTime():
+    global maximum_time
+    global minimum_time
+    global time_collection
+    if len(time_collection) == 0:
+        return
+
+    avg_time = 0
+    for item in time_collection:
+        avg_time += item
+    avg_time /= len(time_collection)
+    print("avg: %.2f, maximum: %.2f, minimum: %.2f." % (avg_time, maximum_time, minimum_time))
+
 # This function could handle errors raised by sqls and continue to run
 def runErrorSqls(run_sqls):
     i = 0
     print("%s start..." % threading.current_thread().name)
-    connection = pymysql.connect(host=config.target_addr, port=config.target_port, user=config.target_user, database=target_database, cursorclass=pymysql.cursors.DictCursor)
+    connection = pymysql.connect(host=config.target_addr, port=config.target_port, user=config.target_user, database=config.target_database, cursorclass=pymysql.cursors.DictCursor)
     isFirst = False
     with connection:
         with connection.cursor() as cursor:
             while True:
                 if isFirst == False:
                     cursor.execute("set tidb_enforce_mpp=1;")
-                    cursor.execute("use %s;" % target_database)
+                    cursor.execute("use %s;" % config.target_database)
                     isFirst = True
                 idx = random.randint(1, len(run_sqls))
                 sql = run_sqls[idx].getSql()
@@ -57,7 +86,10 @@ def runErrorSqls(run_sqls):
                     return
 
 tmp_sqls = [
-    """explain analyze select l_orderkey from tpch10.lineitem group by l_orderkey having sum(l_quantity) > 300;"""
+    # """explain analyze select l_orderkey from tpch10.lineitem group by l_orderkey having sum(l_quantity) > 300;"""
+    # """explain analyze select l_discount from tpch10.lineitem group by l_discount;"""
+    """explain analyze select count(distinct l_partkey) from tpch10.lineitem group by l_orderkey having sum(l_quantity) > 300;"""
+    # """explain analyze select count(distinct l_partkey) from tpch10.lineitem group by l_discount;"""
 ]
 
 def getSql():
@@ -67,14 +99,14 @@ def getSql():
 # Sqls run by this function should always success
 def runNoErrorSqls():
     print("%s start..." % threading.current_thread().name)
-    connection = pymysql.connect(host=config.target_addr, port=config.target_port, user=config.target_user, database=target_database, cursorclass=pymysql.cursors.DictCursor)
+    connection = pymysql.connect(host=config.target_addr, port=config.target_port, user=config.target_user, database=config.target_database, cursorclass=pymysql.cursors.DictCursor)
     isFirst = False
     with connection:
         with connection.cursor() as cursor:
             while True:
                 if isFirst == False:
                     # cursor.execute("set tidb_enforce_mpp=1;")
-                    cursor.execute("use %s;" % target_database)
+                    cursor.execute("use %s;" % config.target_database)
                     isFirst = True
                 # idx = random.randint(1, len(tpch_sqls))
                 # sql = tpch_sqls[idx].getSql()
@@ -83,9 +115,12 @@ def runNoErrorSqls():
                 cursor.execute(sql)
                 end = time.time()
                 # sqls[idx].addInfo(end - start)
-                print("execution time: ", end - start)
+                execution_time = end - start
+                print("execution time: ", execution_time)
                 # result = cursor.fetchall()
                 # print(result)
+
+                updateExecutionTime(execution_time)
 
                 if isTestFinished():
                     return
@@ -132,7 +167,7 @@ def runInsertSqls():
     endNum = (taskId + 1) * insertNum
     taskId += 1
     lock.release()
-    connection = pymysql.connect(host=config.target_addr, port=config.target_port, user=config.target_user, database=target_database, cursorclass=pymysql.cursors.DictCursor)
+    connection = pymysql.connect(host=config.target_addr, port=config.target_port, user=config.target_user, database=config.target_database, cursorclass=pymysql.cursors.DictCursor)
     with connection:
         with connection.cursor() as cursor:
             i = startNum
@@ -185,7 +220,9 @@ if __name__ == "__main__":
     args = parseArgs()
     thread_num = args.thread_num
     test_time = args.test_time
-    target_database = args.db
+    config.target_database = args.db
+
+    print("host: %s, port: %d, database: %s, test_time: %ds, thread_num: %d" % (config.target_addr, config.target_port, config.target_database, test_time, thread_num))
 
     threads = []
     while (thread_num > 0):
@@ -215,5 +252,6 @@ if __name__ == "__main__":
 
     # print("Total time: %f" % total_time)
     # print("Total queries: %d, QPS: %f" % (count, (count / (end - start))))
+    printExecutionTime()
     print("End Time: ", datetime.now())
     print("exit...")
