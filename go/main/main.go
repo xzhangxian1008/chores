@@ -1,95 +1,100 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
-	"io"
-	"os"
+	"math/rand"
+	"sync"
 	"time"
 )
 
-type Opaque struct {
-	a int
-}
+var lock sync.RWMutex
+var syncer chan struct{}
+var syncerExit chan struct{}
+var mu sync.Mutex
 
-func check(err error) {
-	if err != nil {
-		panic("")
+const readNum = 100
+const writeNum = 0
+
+func read() {
+	<-syncer
+	mu := sync.Mutex{}
+	num := int64(300)
+	totalTime := int64(0)
+	for i := int64(0); i < num; i++ {
+		start := time.Now()
+		mu.Lock()
+		waitTime := int64(time.Since(start))
+		totalTime += waitTime
+		time.Sleep(time.Duration(rand.Intn(10)) * time.Millisecond)
+		mu.Unlock()
 	}
+	mu.Lock()
+	fmt.Printf("read avg: %dns\n", totalTime/num/int64(time.Nanosecond))
+	mu.Unlock()
+	syncerExit <- struct{}{}
 }
 
-func testWorkerAsync(file io.ReaderAt) []byte {
-	fileSize := 1000000
-	r := io.NewSectionReader(file, 0, int64(fileSize))
-	bufio.NewReader(r)
-
-	cellSize := 500
-	res := make([]byte, 0)
-	formatCh := make(chan []byte, 3000)
-	go func() {
-		defer close(formatCh)
-		for consumedSize := 0; consumedSize < fileSize; consumedSize += cellSize {
-			cell := make([]byte, cellSize)
-			io.ReadFull(r, cell)
-			formatCh <- cell
-		}
-	}()
-
-	for format := range formatCh {
-		res = append(res, format...)
+func write() {
+	<-syncer
+	num := int64(300)
+	totalTime := int64(0)
+	for i := int64(0); i < num; i++ {
+		start := time.Now()
+		lock.Lock()
+		waitTime := int64(time.Since(start))
+		totalTime += waitTime
+		lock.Unlock()
 	}
-
-	return res
+	mu.Lock()
+	fmt.Printf("write avg: %dus\n", totalTime/num/int64(time.Microsecond))
+	mu.Unlock()
+	syncerExit <- struct{}{}
 }
 
-func testWorkerBlocked(file io.ReaderAt) []byte {
-	fileSize := 1000000
-	r := io.NewSectionReader(file, 0, int64(fileSize))
-	bufio.NewReader(r)
-
-	cellSize := 500
-	res := make([]byte, 0)
-	for consumedSize := 0; consumedSize < fileSize; consumedSize += cellSize {
-		cell := make([]byte, cellSize)
-		io.ReadFull(r, cell)
-		res = append(res, cell...)
-	}
-	return res
+func f() {
+	defer fmt.Println(1)
+	defer fmt.Println(2)
+	fmt.Println("exit...")
 }
 
-var loopNum int = 3000
-
-func testAsync(file io.ReaderAt) {
-	fmt.Println("--------Async--------")
-	start := time.Now()
-	totalLen := 0
-	for i := 0; i < loopNum; i++ {
-		res := testWorkerAsync(file)
-		totalLen += len(res)
-	}
-	elapsed := time.Since(start)
-	fmt.Println(totalLen)
-	fmt.Println(elapsed)
-	fmt.Println("---------------------")
-}
-
-func testBlocked(file io.ReaderAt) {
-	fmt.Println("--------Blocked--------")
-	start := time.Now()
-	totalLen := 0
-	for i := 0; i < loopNum; i++ {
-		res := testWorkerBlocked(file)
-		totalLen += len(res)
-	}
-	elapsed := time.Since(start)
-	fmt.Println(totalLen)
-	fmt.Println(elapsed)
-	fmt.Println("-----------------------")
-}
+// 26326 427095560
+// 427098424 855233053
+// 855246475 1289258768
+// 1289269338 1720523486
+// 1720524265 2147481675
 
 func main() {
-	file, err := os.Open("tmp")
-	check(err)
-	testBlocked(file)
-	testAsync(file)
+	num := 20000000
+	rangeNum := 5
+	// avgAmount := num / rangeNum
+	// data := make([]int32, 0, num)
+	rangeData := make([][]int32, rangeNum)
+	for i := 0; i < num; i++ {
+		randNum := rand.Int31()
+		if randNum <= 427095560 {
+			rangeData[0] = append(rangeData[0], randNum)
+		} else if randNum <= 855233053 {
+			rangeData[1] = append(rangeData[1], randNum)
+		} else if randNum <= 1289258768 {
+			rangeData[2] = append(rangeData[2], randNum)
+		} else if randNum <= 1720523486 {
+			rangeData[3] = append(rangeData[3], randNum)
+		} else {
+			rangeData[4] = append(rangeData[4], randNum)
+		}
+	}
+
+	// sort.Slice(data, func(i, j int) bool { return data[i] < data[j] })
+
+	// for _, d := range data {
+	// 	fmt.Println(d)
+	// }
+
+	// for i := 0; i < rangeNum; i++ {
+	// 	fmt.Printf("%d %d\n", data[i*avgAmount], data[(i+1)*avgAmount-1])
+	// }
+
+	for _, nums := range rangeData {
+		fmt.Println(len(nums))
+	}
 }
