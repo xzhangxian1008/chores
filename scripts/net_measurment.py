@@ -1,6 +1,6 @@
-import os
 import time
 from time import gmtime, strftime
+import subprocess
 
 def getCurrentDateTimeStr():
     return strftime("%Y-%m-%d %H:%M:%S", gmtime())
@@ -63,8 +63,8 @@ class Detector:
 
     def ping(self):
         start_time = time.time()
-        response = os.system("ping 10.2.12.125 -c 1 ")
-        if response != 0:
+        ret = subprocess.run(["ping", "10.2.12.125", "-c 1"], stdout=subprocess.DEVNULL)
+        if ret.returncode != 0:
             return -1
         end_time = time.time()
         return end_time - start_time
