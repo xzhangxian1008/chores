@@ -96,6 +96,30 @@ def getSql():
     idx = random.randint(1, len(tmp_sqls))
     return tmp_sqls[idx-1]
 
+def executeSQL(sql):
+    results = []
+    connection = pymysql.connect(host=config.target_addr, port=config.target_port, user=config.target_user, database=config.target_database, cursorclass=pymysql.cursors.DictCursor)
+    with connection:
+        with connection.cursor() as cursor:
+            cursor.execute(sql)
+            all_data = cursor.fetchall()
+            result_num = len(all_data)
+            i = 0
+            while i < result_num:
+                result = ""
+                for _, value in all_data[i].items():
+                    if len(result) == 0:
+                        result = str(value)
+                    else:
+                        result = "%s, %s" % (result, str(value))
+                results.append(result)
+                i += 1
+
+    results.sort()
+    with open("sql_result.txt", "w") as f:
+        for result in results:
+            f.write("%s\n" % result)
+
 # Sqls run by this function should always success
 def runNoErrorSqls():
     print("%s start..." % threading.current_thread().name)
@@ -125,44 +149,15 @@ def runNoErrorSqls():
                 if isTestFinished():
                     return
 
-bookIds = [1, 30, 50]
+
 taskId = 0
-insertNum = 300000
-
-project_name_or_id = [
-    "project_name_or_id_10000000000000000000000000000000000000000000000000000000000",
-    "project_name_or_id_11111111111111111111111111111111111111111111111111111111111",
-    "project_name_or_id_22222222222222222222222222222222222222222222222222222222222",
-    "project_name_or_id_33333333333333333333333333333333333333333333333333333333333",
-    "project_name_or_id_44444444444444444444444444444444444444444444444444444444444",
-    "project_name_or_id_55555555555555555555555555555555555555555555555555555555555",
-    "project_name_or_id_66666666666666666666666666666666666666666666666666666666666",
-    "project_name_or_id_77777777777777777777777777777777777777777777777777777777777",
-    "project_name_or_id_88888888888888888888888888888888888888888888888888888888888",
-    "project_name_or_id_99999999999999999999999999999999999999999999999999999999999"
-]
-
-token_address = [
-    "token_address_10000000000000000000000000000000000000000000000000000000000",
-    "token_address_11111111111111111111111111111111111111111111111111111111111",
-    "token_address_22222222222222222222222222222222222222222222222222222222222",
-    "token_address_33333333333333333333333333333333333333333333333333333333333",
-    "token_address_44444444444444444444444444444444444444444444444444444444444",
-    "token_address_55555555555555555555555555555555555555555555555555555555555",
-    "token_address_66666666666666666666666666666666666666666666666666666666666",
-    "token_address_77777777777777777777777777777777777777777777777777777777777",
-    "token_address_88888888888888888888888888888888888888888888888888888888888",
-    "token_address_99999999999999999999999999999999999999999999999999999999999"
-]
-
-address_or_general = "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+insertNum = 20000
 
 def runInsertSqls():
     global lock
-    global bookIds
     global taskId
     lock.acquire()
-    # [startNum, endNum)
+    # Range: [startNum, endNum)
     startNum = taskId * insertNum
     endNum = (taskId + 1) * insertNum
     taskId += 1
@@ -172,15 +167,11 @@ def runInsertSqls():
         with connection.cursor() as cursor:
             i = startNum
             while i < endNum:
-                idx = random.randint(0, 9)
-                # insert_sql = "insert into matrix_address_labels values('%s', '%s')" % (address_or_general, address_or_general)
-                insert_sql = "insert into all_projects values('%s', '%s', '%s')" % (project_name_or_id[idx], token_address[idx], project_name_or_id[idx])
+                insert_sql = "insert into reproduce values('%s', '%s', '%s')" % (i, i%10000, i%10000)
                 i += 1
                 j = 1
                 while j < 10000:
-                    idx = random.randint(0, 9)
-                    # insert_sql = "%s, ('%s', '%s')" % (insert_sql, address_or_general, address_or_general)
-                    insert_sql = "%s, ('%s', '%s', '%s')" % (insert_sql, project_name_or_id[idx], token_address[idx], project_name_or_id[idx])
+                    insert_sql = "%s, ('%d', '%d', '%d')" % (insert_sql, i, i%10000, i%10000)
                     i += 1
                     j += 1
                 insert_sql += ';'
@@ -212,21 +203,15 @@ def parseArgs():
     parser.add_argument('--thread_num', type=int, default=1, help='thread number, default 1')
     parser.add_argument('--test_time', type=int, default=0, help="test time(seconds), default 30s")
     parser.add_argument('--db', type=str, default="test", help="database, default 'test'")
+    parser.add_argument('--port', type=int, default=7001, help="port, default=7001")
+    parser.add_argument('--address', type=str, default="127.0.0.1", help="ipv4 address, default=127.0.0.1")
     args = parser.parse_args()
     return args
 
-if __name__ == "__main__":
-    print("Start Time: ", datetime.now())
-    args = parseArgs()
-    thread_num = args.thread_num
-    test_time = args.test_time
-    config.target_database = args.db
-
-    print("host: %s, port: %d, database: %s, test_time: %ds, thread_num: %d" % (config.target_addr, config.target_port, config.target_database, test_time, thread_num))
-
+def runInMode1():
     threads = []
     while (thread_num > 0):
-        thread = threading.Thread(target=runNoErrorSqls)
+        thread = threading.Thread(target=runInsertSqls)
         thread.start()
         threads.append(thread)
         thread_num -= 1
@@ -241,17 +226,23 @@ if __name__ == "__main__":
     for thread in threads:
         thread.join()
 
-    # end = time.time()
+def runInMode2():
+    executeSQL("select L_ORDERKEY, L_PARTKEY, L_SHIPINSTRUCT from tpch1.lineitem limit 10;")
 
-    # count = 0
-    # for sql in sqls.values():
-    #     count += sql.getCount()
-    #     print(sql.getInfo())
+if __name__ == "__main__":
+    print("Start Time: ", datetime.now())
+    args = parseArgs()
+    thread_num = args.thread_num
+    test_time = args.test_time
+    config.target_addr = args.address
+    config.target_port = args.port
+    config.target_database = args.db
 
-    # total_time = end - start
+    print("host: %s, port: %d, database: %s, test_time: %ds, thread_num: %d" % (config.target_addr, config.target_port, config.target_database, test_time, thread_num))
 
-    # print("Total time: %f" % total_time)
-    # print("Total queries: %d, QPS: %f" % (count, (count / (end - start))))
+    # runInMode1()
+    runInMode2()
+
     printExecutionTime()
     print("End Time: ", datetime.now())
     print("exit...")
