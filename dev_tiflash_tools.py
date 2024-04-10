@@ -1,6 +1,5 @@
 import os
 import sys
-from datetime import datetime
 
 # Tasks:
 #   - copy tidb/tikv binaries to cls cluster's patch directory and do the patching operation.(not emergency)
@@ -12,9 +11,6 @@ tiflash_gmssl_name = "libgmssld.so.3"
 
 tidb_debug_binary_name = "tidb-server-debug"
 tidb_release_binary_name = "tidb-server"
-
-mode = "release" # release or debug
-# mode = "debug" # release or debug
 
 tiflash_src_build_directory = ""
 tiflash_src_binary_directory = ""
@@ -47,7 +43,10 @@ cls_tidb_bin_directory = "%s/tiup_deploy/cls/tidb-8001/bin" % prefix_path
 
 tmp_cmd = []
 
-def initParams():
+debugModeFlag = "debug"
+releaseModeFlag = "release"
+
+def initCpCmdParams(mode):
     global tiflash_src_build_directory
     global tiflash_src_binary_directory
     global tiflash_src_proxy_directory
@@ -57,11 +56,11 @@ def initParams():
     global tiflash_src_gmssl_binary
     global tidb_src_binary
 
-    if mode == "debug":
+    if mode == debugModeFlag:
         tiflash_src_build_directory = "%s/tiflash/build" % prefix_path
         tidb_src_binary = "%s/%s" % (tidb_binary_directory, tidb_debug_binary_name)
         tidb_src_binary = "%s/%s" % (tidb_binary_directory, tidb_debug_binary_name)
-    elif mode == "release":
+    elif mode == releaseModeFlag:
         tiflash_src_build_directory = "%s/tiflash/build-release" % prefix_path
         tidb_src_binary = "%s/%s" % (tidb_binary_directory, tidb_release_binary_name)
     else:
@@ -74,12 +73,6 @@ def initParams():
     tiflash_src_binary_binary = "%s/%s" % (tiflash_src_binary_directory, tiflash_binary_name)
     tiflash_src_proxy_binary = "%s/%s" % (tiflash_src_proxy_directory, tiflash_proxy_name)
     tiflash_src_gmssl_binary = "%s/%s" % (tiflash_src_gmssl_directory, tiflash_gmssl_name)
-
-
-
-
-def init():
-    initParams()
 
 
 class TiupCmd:
@@ -191,6 +184,7 @@ class TiupCmd:
             raise Exception("Invalid argv length")
         os.system(cmd)
 
+
 # df: cluster name: dev, role: tiflash
 # cf: cluster name: cls, role: tiflash
 # dd: cluster name: dev, rolw: tidb
@@ -230,6 +224,7 @@ class TmpCmd:
             raise Exception("Can't find this temporary cmd")
         os.system(tmp_cmd[idx])
 
+
 # tu: tiup
 #   - c: cluster
 #   - b: bench
@@ -250,13 +245,11 @@ class Cmd:
             cmd.execute()
         elif op == "cpd":
             cmd = CpCmd(argv[1:])
-            if mode != "debug":
-                raise Exception("mode != debug")
+            initCpCmdParams(debugModeFlag)
             cmd.execute()
         elif op == "cpr":
             cmd = CpCmd(argv[1:])
-            if mode != "release":
-                raise Exception("mode != release")
+            initCpCmdParams(releaseModeFlag)
             cmd.execute()
         elif op.isdigit():
             cmd = TmpCmd(argv)
@@ -269,6 +262,5 @@ if __name__ == "__main__":
     argv = sys.argv[1:]
     if len(argv) == 0:
         raise Exception("arg num is 0")
-    init()
     cmd = Cmd(argv)
     cmd.execute()
