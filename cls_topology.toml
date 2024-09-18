@@ -2,7 +2,7 @@
 # # the deployments if a specific deployment value is missing.
 global:
   # # The user who runs the tidb cluster.
-  user: "root"
+  user: "xzx"
   # # group is used to specify the group name the user belong to,if it's not the same as user.
   # group: "tidb"
   # # SSH port of servers in the managed cluster.
@@ -160,15 +160,15 @@ tiflash_servers:
     # # Prometheus pulls the TiFlash metrics port.
     metrics_port: 7203
     # # TiFlash Server deployment file, startup script, configuration file storage directory.
-    deploy_dir: /DATA/disk4/xzx/tiup_deploy/cls/tiflash-7003
+    deploy_dir: /DATA/disk3/xzx/tiup_deploy/cls/tiflash-7003
     ## With cluster version >= v4.0.9 and you want to deploy a multi-disk TiFlash node, it is recommended to
     ## check config.storage.* for details. The data_dir will be ignored if you defined those configurations.
     ## Setting data_dir to a ','-joined string is still supported but deprecated.
     ## Check https://docs.pingcap.com/tidb/stable/tiflash-configuration#multi-disk-deployment for more details.
     # # TiFlash Server data storage directory.
-    data_dir: /DATA/disk4/xzx/tiup_deploy/cls/data/tiflash-7003
+    data_dir: /DATA/disk3/xzx/tiup_deploy/cls/data/tiflash-7003
     # # TiFlash Server log file storage directory.
-    log_dir: /DATA/disk4/xzx/tiup_deploy/cls/tiflash-7003/log
+    log_dir: /DATA/disk3/xzx/tiup_deploy/cls/tiflash-7003/log
   - host: 10.2.12.126
     # # SSH port of the server.
     # ssh_port: 22

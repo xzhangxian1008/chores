@@ -41,7 +41,7 @@ cls_tiflash_conf_directory = "%s/tiup_deploy/cls/tiflash-7003/conf" % prefix_pat
 dev_tidb_bin_directory = "%s/tiup_deploy/dev/tidb-7001/bin" % prefix_path
 cls_tidb_bin_directory = "%s/tiup_deploy/cls/tidb-8001/bin" % prefix_path
 
-tmp_cmd = []
+tmp_cmd = ["cd /"]
 
 debugModeFlag = "debug"
 releaseModeFlag = "release"
@@ -61,7 +61,7 @@ def initCpCmdParams(mode):
         tidb_src_binary = "%s/%s" % (tidb_binary_directory, tidb_debug_binary_name)
         tidb_src_binary = "%s/%s" % (tidb_binary_directory, tidb_debug_binary_name)
     elif mode == releaseModeFlag:
-        tiflash_src_build_directory = "%s/tiflash/build-release" % prefix_path
+        tiflash_src_build_directory = "%s/tiflash/cmake-build-release" % prefix_path
         tidb_src_binary = "%s/%s" % (tidb_binary_directory, tidb_release_binary_name)
     else:
         raise Exception("Invalid mode")
