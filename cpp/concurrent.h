@@ -4,8 +4,8 @@
 #include <thread>
 #include <tuple>
 #include <iostream>
+#include <condition_variable>
 #include "Stopwatch.h"
-using namespace std;
 
 namespace {
 
@@ -79,6 +79,6 @@ void start_tasks(Func &&func) {
     ul.lock();
     cv.wait(ul);
     sw.stop();
-    cout << "Elapsed time: " << sw.elapsedMilliseconds() << "ms" << std::endl;
+    std::cout << "Elapsed time: " << sw.elapsedMilliseconds() << "ms" << std::endl;
 }
 }

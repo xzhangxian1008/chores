@@ -2,4 +2,4 @@
 #include <mutex>
 #include <utility>
 
-void log__() { cout << endl; }
+void log__() { std::cout << std::endl; }

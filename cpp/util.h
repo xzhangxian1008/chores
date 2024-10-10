@@ -20,12 +20,12 @@
 // #include <stdio.h>
 #include <map>
 // #include <queue>
-#include <sstream>
+// #include <sstream>
 #include <future>
 // #include <functional>
 // #include <condition_variable>
 // #include <mutex>
-#include <chrono>
+// #include <chrono>
 // #include <atomic>
 #include <set>
 // #include <unordered_set>
@@ -35,8 +35,8 @@
 #include <mutex>
 // #include <chrono>
 // #include <math.h>
-// #include <type_traits>
-#include <ctime>
+#include <type_traits>
+// #include <ctime>
 #include <functional>
 // #include <fcntl.h>
 #include <string>
@@ -44,7 +44,6 @@
 #include <cstdio>
 #include "Stopwatch.h"
 #include "concurrent.h"
-using namespace std;
 
 #define DISALLOW_COPY(ClassName)           \
     ClassName(const ClassName &) = delete; \
@@ -75,7 +74,7 @@ void panic__(std::string func, int line, T &info) {
     exit(-1);
 }
 
-inline void print__() { std::cout << endl; };
+inline void print__() { std::cout << std::endl; };
 
 template<typename T, typename... Types>
 void print__(const T& firstArg, const Types&... args) {
@@ -117,7 +116,7 @@ public:
 class Node {
 public:
     int val;
-    vector<Node*> children;
+    std::vector<Node*> children;
 
     Node() {}
 
@@ -125,7 +124,7 @@ public:
         val = _val;
     }
 
-    Node(int _val, vector<Node*> _children) {
+    Node(int _val, std::vector<Node*> _children) {
         val = _val;
         children = _children;
     }
