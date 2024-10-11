@@ -141,9 +141,9 @@ public:
 
 
 // range: [begin, end]
-class Rand {
+class RandNum {
 public:
-    Rand(uint64_t begin, uint64_t end) : di(begin, end) {}
+    RandNum(uint64_t begin, uint64_t end) : di(begin, end) {}
 
     void setRange(uint64_t begin, uint64_t end) {
         di.param(std::uniform_int_distribution<uint64_t>::param_type{begin, end});
@@ -153,6 +153,23 @@ public:
 private:
     std::default_random_engine dre;
     std::uniform_int_distribution<uint64_t> di;
+};
+
+class RandString {
+public:
+    explicit RandString() : rand_num_(int(' '), int('~')) {}
+
+    std::string getRandString(size_t str_len) {
+        std::string ret;
+        ret.resize(str_len);
+        for (size_t i = 0; i < str_len; i++) {
+            ret[i] = rand_num_.getNum();
+        }
+        return ret;
+    }
+
+private:
+    RandNum rand_num_;
 };
 
 struct Noisy {
