@@ -16,6 +16,7 @@
 namespace Bench {
 
 inline const size_t DEFAULT_VALUE_SIZE = 100;
+inline const std::string DEFAULT_BENCH_DIR = "/DATA/disk3/xzx/tmp/leveldb_data/bench_db";
 
 // Comma-separated list of operations to run in the specified order
 //   Actual benchmarks:
@@ -43,7 +44,7 @@ inline const size_t DEFAULT_VALUE_SIZE = 100;
 
 enum BenchType {
     fillSeq,      // write N values in sequential key order in async mode
-    fillrandom    // write N values in random key order in async mode
+    fillRandom    // write N values in random key order in async mode
 };
 
 struct Statistics {
@@ -74,6 +75,7 @@ struct BenchmarkParam {
     std::string db_data_dir_;
     size_t thread_num_;
     size_t entry_num_per_thread_;
+    size_t entry_num_per_batch_;
     size_t value_size_;
     BenchType bench_type_;
 };
