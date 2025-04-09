@@ -3,7 +3,8 @@ MACRO = -DMY_ENV
 HEAD_FILES = util.h
 OBJ_FILES = server.o client.o
 SOURCE_FILES = server.cpp client.cpp
-OPTIMIZE = -O0 -g -fomit-frame-pointer
+# OPTIMIZE = -O0 -g -fomit-frame-pointer
+OPTIMIZE = -O3
 COMPILER = clang++
 LINK_LIBS = -lpthread
 
