@@ -4,4 +4,9 @@ cpp/*.o
 cpp/core*
 cpp/m
 
+network/client
+network/server
+
 scripts/__pycache__
+
+python/__pycache__
