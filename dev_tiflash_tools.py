@@ -7,7 +7,7 @@ import sys
 tiflash_tar_name = "tiflash-nightly-linux-amd64.tar.gz"
 tiflash_binary_name = "tiflash"
 tiflash_proxy_name = "libtiflash_proxy.so"
-tiflash_gmssl_name = "libgmssld.so.3"
+tiflash_gmssl_name = "libgmssl.so.3.0"
 
 tidb_debug_binary_name = "tidb-server-debug"
 tidb_release_binary_name = "tidb-server"
@@ -61,7 +61,7 @@ def initCpCmdParams(mode):
         tidb_src_binary = "%s/%s" % (tidb_binary_directory, tidb_debug_binary_name)
         tidb_src_binary = "%s/%s" % (tidb_binary_directory, tidb_debug_binary_name)
     elif mode == releaseModeFlag:
-        tiflash_src_build_directory = "%s/tiflash/cmake-build-release" % prefix_path
+        tiflash_src_build_directory = "%s/tiflash/build-release" % prefix_path
         tidb_src_binary = "%s/%s" % (tidb_binary_directory, tidb_release_binary_name)
     else:
         raise Exception("Invalid mode")
