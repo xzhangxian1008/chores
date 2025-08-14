@@ -4,10 +4,14 @@ import (
 	"log"
 )
 
-func MarkDefaultLog() {
-	log.Println("--- mark ---")
+func DefaultMarkLog() {
+	logImpl("--- mark ---")
 }
 
 func MarkLog(str string) {
+	logImpl(str)
+}
+
+func logImpl(str string) {
 	log.Println(str)
 }
