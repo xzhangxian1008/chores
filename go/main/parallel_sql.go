@@ -221,7 +221,7 @@ func run() {
 	buildTableNames := []string{"t10", "t30", "t100", "t300", "t1000"}
 	threadNums := []int{20, 50, 100, 200, 400}
 	totalQueryNum := 20000
-	repeatNum := 100
+	repeatNum := 10
 	for _, variable := range variables {
 		fmt.Printf("----------Hash Join Type: %s----------\n", variable)
 		for _, tableName := range buildTableNames {
