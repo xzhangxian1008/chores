@@ -45,14 +45,21 @@ func lowerOrUpperCharacter(str string) string {
 	return string(strBytes)
 }
 
-func generateDistAggRows() {
-	totalDistinctAggRowNum = rand.Intn(200000) + 200000
-	nvdNum = rand.Intn(totalDistinctAggRowNum/2) + 1
-	fillIntVals()
-	fillFloatOrDecimalVals()
-	fillStringVals()
-	fillStringStringVals()
-	fillStringIntVals()
+func generateDistAggRows(idx int) {
+	switch idx {
+	case 0:
+		fillIntVals()
+	case 1:
+		fillFloatOrDecimalVals()
+	case 2:
+		fillStringVals()
+	case 3:
+		fillStringStringVals()
+	case 4:
+		fillStringIntVals()
+	default:
+		panic("Invalid idx")
+	}
 }
 
 func fillIntVals() {
@@ -78,7 +85,7 @@ func fillFloatOrDecimalVals() {
 	floatOrDecimalValsMap := make(map[float64]struct{})
 	for range nvdNum {
 		for {
-			strVal := fmt.Sprintf("%.2f", rand.Float64()*100-50)
+			strVal := fmt.Sprintf("%.2f", rand.Float64()*10000000-5000000)
 			val, err := strconv.ParseFloat(strVal, 64)
 			if err != nil {
 				panic(err)
@@ -188,12 +195,12 @@ func generateT2OrT3Row() string {
 }
 
 func generateT4OrT5Row() string {
-	return fmt.Sprintf("(%s, %d)", stringVals[rand.Intn(len(stringVals))], generateGroupByVal())
+	return fmt.Sprintf("('%s', %d)", stringVals[rand.Intn(len(stringVals))], generateGroupByVal())
 }
 
 func generateT6OrT7Row() string {
 	idx := rand.Intn(len(stringStringVals))
-	return fmt.Sprintf("(%s, %s, %d)", stringStringVals[idx][0], stringStringVals[idx][1], generateGroupByVal())
+	return fmt.Sprintf("('%s', '%s', %d)", stringStringVals[idx][0], stringStringVals[idx][1], generateGroupByVal())
 }
 
 func generateT8Row() string {
@@ -202,7 +209,7 @@ func generateT8Row() string {
 		panic("len(tmp) != 1")
 	}
 	for k, v := range tmp {
-		return fmt.Sprintf("(%s, %d, %d)", k, v, generateGroupByVal())
+		return fmt.Sprintf("('%s', %d, %d)", k, v, generateGroupByVal())
 	}
 	panic("Shouldn't reach here")
 }
@@ -251,10 +258,26 @@ func insertTable(db *sql.DB, tableName string, rowNum int) {
 
 func runInsertDistinctAggTableWorkers() {
 	fmt.Println("Start to generate data")
-	generateDistAggRows()
+	totalDistinctAggRowNum = rand.Intn(200000) + 200000
+	nvdNum = rand.Intn(totalDistinctAggRowNum/2) + 1
+	fmt.Printf("total row num: %d, nvd: %d\n", totalDistinctAggRowNum, nvdNum)
+
+	wg := &sync.WaitGroup{}
+	wg.Add(5)
+	for i := range 5 {
+		go func(idx int) {
+			defer func() {
+				wg.Done()
+				fmt.Printf("%d generate donw", idx)
+			}()
+			generateDistAggRows(i)
+		}(i)
+	}
+
+	wg.Wait()
 	fmt.Println("All data has been generated")
 	tableNames := []string{"t1", "t2", "t3", "t4", "t5", "t6", "t7", "t8"}
-	wg := &sync.WaitGroup{}
+	wg.Add(len(tableNames))
 	for _, tableName := range tableNames {
 		go func(tableName string) {
 			defer wg.Done()
@@ -273,4 +296,5 @@ func runInsertDistinctAggTableWorkers() {
 		}(tableName)
 	}
 	wg.Wait()
+	fmt.Println("All rows have been successfully inserted")
 }
