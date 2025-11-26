@@ -125,52 +125,31 @@ func fillStringVals() {
 }
 
 func fillStringStringVals() {
-	stringStringValsMap := make(map[string][]string)
-	for range nvdNum / 2 {
-		for {
-			str1 := generateRandomString(rand.Intn(20))
-			str2 := generateRandomString(rand.Intn(20))
-			str3 := lowerOrUpperCharacter(str2)
-			val1 := fmt.Sprintf("%s%s", str1, str2)
-			_, ok := stringStringValsMap[val1]
-			if !ok {
-				stringStringValsMap[val1] = []string{str1, str2}
-				stringStringValsMap[fmt.Sprintf("%s%s", str1, str3)] = []string{str1, str3}
-				break
-			}
-		}
-	}
-
-	stringStringVals = make([][]string, 0, len(stringStringValsMap))
-	for _, val := range stringStringValsMap {
-		tmp := make([]string, 0, 2)
-		tmp = append(tmp, val[0])
-		tmp = append(tmp, val[1])
-		stringStringVals = append(stringStringVals, tmp)
-	}
+	stringStringVals = make([][]string, 0, 10)
+	stringStringVals = append(stringStringVals, []string{"fefsg4", "32Fwg4f"})
+	stringStringVals = append(stringStringVals, []string{"oRn$4g", "f*7g4"})
+	stringStringVals = append(stringStringVals, []string{"0HF83#F", "#$f898grG"})
+	stringStringVals = append(stringStringVals, []string{"J$g94G#$", "f(#F#38f)"})
+	stringStringVals = append(stringStringVals, []string{"(8feF)", "hfeiIFh4"})
+	stringStringVals = append(stringStringVals, []string{"OifI8fe4", "98Fei3Fe"})
+	stringStringVals = append(stringStringVals, []string{"fefsG4", "32FWg4f"})
+	stringStringVals = append(stringStringVals, []string{"greRG", "65Ggf"})
+	stringStringVals = append(stringStringVals, []string{"4GF4grG", "rj64"})
+	stringStringVals = append(stringStringVals, []string{"shtR45", "4fgG4gr"})
 }
 
 func fillStringIntVals() {
-	stringIntValsMap := make(map[string]map[string]int)
-	for range nvdNum / 2 {
-		for {
-			str1 := generateRandomString(rand.Intn(20))
-			str2 := lowerOrUpperCharacter(str1)
-			intVal := rand.Intn(10000000)
-			val1 := fmt.Sprintf("%s%d", str1, intVal)
-			_, ok := stringIntValsMap[val1]
-			if !ok {
-				stringIntValsMap[val1] = map[string]int{str1: intVal}
-				stringIntValsMap[fmt.Sprintf("%s%d", str2, intVal)] = map[string]int{str2: intVal}
-				break
-			}
-		}
-	}
-
-	stringIntVals = make([]map[string]int, 0, len(stringIntValsMap))
-	for _, val := range stringIntValsMap {
-		stringIntVals = append(stringIntVals, val)
-	}
+	stringIntVals = make([]map[string]int, 0, 10)
+	stringIntVals = append(stringIntVals, map[string]int{"fefsg4": 14})
+	stringIntVals = append(stringIntVals, map[string]int{"oRn$4g": 45})
+	stringIntVals = append(stringIntVals, map[string]int{"0HF83#F": 643})
+	stringIntVals = append(stringIntVals, map[string]int{"J$g94G#$": 21})
+	stringIntVals = append(stringIntVals, map[string]int{"(8feF)": 641})
+	stringIntVals = append(stringIntVals, map[string]int{"OifI8fe4": 41})
+	stringIntVals = append(stringIntVals, map[string]int{"fefsG4": 471})
+	stringIntVals = append(stringIntVals, map[string]int{"greRG": 61})
+	stringIntVals = append(stringIntVals, map[string]int{"4GF4grG": 13})
+	stringIntVals = append(stringIntVals, map[string]int{"shtR45": 71})
 }
 
 // t1 int: create table t1 (col0 int, col1 int);
@@ -178,38 +157,37 @@ func fillStringIntVals() {
 // t3 decimal: create table t3 (col0 decimal(20, 2), col1 int);
 // t4 string ci collation: create table t4 (col0 varchar(30), col1 int)collate=utf8_general_ci;
 // t5 string cs collation: create table t5 (col0 varchar(30), col1 int)collate=utf8_bin;
-// t6 string string ci collation collation: create table t6 (col0 varchar(30), col1 varchar(30), col2 int)collate=utf8_general_ci;
-// t7 string string cs collation: create table t7 (col0 varchar(30), col1 varchar(30), col2 int)collate=utf8_bin;
-// t8 string int: create table t8 (col0 varchar(30), col1 int, col2 int);
+// t6 string string: create table t6 (col0 varchar(30), col1 varchar(30), col2 int);
+// t7 string int: create table t7 (col0 varchar(30), col1 int, col2 int);
 
-func generateGroupByVal() int {
-	return rand.Intn(10)
+func generateGroupByVal(randomRange int) int {
+	return rand.Intn(randomRange)
 }
 
 func generateT1Row() string {
-	return fmt.Sprintf("(%d, %d)", intVals[rand.Intn(len(intVals))], generateGroupByVal())
+	return fmt.Sprintf("(%d, %d)", intVals[rand.Intn(len(intVals))], generateGroupByVal(nvdNum))
 }
 
 func generateT2OrT3Row() string {
-	return fmt.Sprintf("(%f, %d)", floatOrDecimalVals[rand.Intn(len(floatOrDecimalVals))], generateGroupByVal())
+	return fmt.Sprintf("(%f, %d)", floatOrDecimalVals[rand.Intn(len(floatOrDecimalVals))], generateGroupByVal(nvdNum))
 }
 
 func generateT4OrT5Row() string {
-	return fmt.Sprintf("('%s', %d)", stringVals[rand.Intn(len(stringVals))], generateGroupByVal())
+	return fmt.Sprintf("('%s', %d)", stringVals[rand.Intn(len(stringVals))], generateGroupByVal(nvdNum))
 }
 
-func generateT6OrT7Row() string {
+func generateT6Row() string {
 	idx := rand.Intn(len(stringStringVals))
-	return fmt.Sprintf("('%s', '%s', %d)", stringStringVals[idx][0], stringStringVals[idx][1], generateGroupByVal())
+	return fmt.Sprintf("('%s', '%s', %d)", stringStringVals[idx][0], stringStringVals[idx][1], generateGroupByVal(totalDistinctAggRowNum/10))
 }
 
-func generateT8Row() string {
+func generateT7Row() string {
 	tmp := stringIntVals[rand.Intn(len(stringIntVals))]
 	if len(tmp) != 1 {
 		panic("len(tmp) != 1")
 	}
 	for k, v := range tmp {
-		return fmt.Sprintf("('%s', %d, %d)", k, v, generateGroupByVal())
+		return fmt.Sprintf("('%s', %d, %d)", k, v, generateGroupByVal(totalDistinctAggRowNum/10))
 	}
 	panic("Shouldn't reach here")
 }
@@ -232,15 +210,15 @@ func generateTableRows(tableName string, rowNum int) string {
 		for range rowNum {
 			insertSql = fmt.Sprintf("%s, %s", insertSql, generateT4OrT5Row())
 		}
-	case "t6", "t7":
-		insertSql = fmt.Sprintf("%s %s", insertSql, generateT6OrT7Row())
+	case "t6":
+		insertSql = fmt.Sprintf("%s %s", insertSql, generateT6Row())
 		for range rowNum {
-			insertSql = fmt.Sprintf("%s, %s", insertSql, generateT6OrT7Row())
+			insertSql = fmt.Sprintf("%s, %s", insertSql, generateT6Row())
 		}
-	case "t8":
-		insertSql = fmt.Sprintf("%s %s", insertSql, generateT8Row())
+	case "t7":
+		insertSql = fmt.Sprintf("%s %s", insertSql, generateT7Row())
 		for range rowNum {
-			insertSql = fmt.Sprintf("%s, %s", insertSql, generateT8Row())
+			insertSql = fmt.Sprintf("%s, %s", insertSql, generateT7Row())
 		}
 	default:
 		panic(fmt.Sprintf("Unknown table %s", tableName))
@@ -259,7 +237,7 @@ func insertTable(db *sql.DB, tableName string, rowNum int) {
 func runInsertDistinctAggTableWorkers() {
 	fmt.Println("Start to generate data")
 	totalDistinctAggRowNum = rand.Intn(200000) + 200000
-	nvdNum = rand.Intn(totalDistinctAggRowNum/2) + 1
+	nvdNum = totalDistinctAggRowNum / 10
 	fmt.Printf("total row num: %d, nvd: %d\n", totalDistinctAggRowNum, nvdNum)
 
 	wg := &sync.WaitGroup{}
@@ -276,7 +254,7 @@ func runInsertDistinctAggTableWorkers() {
 
 	wg.Wait()
 	fmt.Println("All data has been generated")
-	tableNames := []string{"t1", "t2", "t3", "t4", "t5", "t6", "t7", "t8"}
+	tableNames := []string{"t1", "t2", "t3", "t4", "t5"}
 	wg.Add(len(tableNames))
 	for _, tableName := range tableNames {
 		go func(tableName string) {
