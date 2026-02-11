@@ -1,11 +1,9 @@
 package main
 
 import (
-	"database/sql"
 	"fmt"
-	"math"
 	"math/rand"
-	"strconv"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -16,108 +14,9 @@ import (
 
 const totalRowNum = 500000
 const oneBatchRowNum = 1000
-const table1Name = "ct1"
-const table2Name = "ct2"
-const addr = "10.2.12.57"
-const port = "32651"
-const user = "root"
-const dbName = "test"
 
-func Round(f float64, n int) float64 {
-	pow10 := math.Pow10(n)
-	return math.Round(f*pow10) / pow10
-}
-
-func generateRandomInt() string {
-	if rand.Intn(10000) == 5000 {
-		return "null"
-	}
-	return strconv.Itoa(rand.Intn(1000000))
-}
-
-func generateRandomDatetime() string {
-	if rand.Intn(10000) == 5000 {
-		return "null"
-	}
-	return fmt.Sprintf("'%d-%d-%d %d:0:0'", rand.Intn(500)+2000, rand.Intn(12)+1, rand.Intn(25)+1, rand.Intn(6))
-}
-
-func generateRandomFloat() string {
-	if rand.Intn(10000) == 5000 {
-		return "null"
-	}
-	return fmt.Sprintf("%.2f", rand.Float32()+float32(rand.Intn(1000000)))
-}
-
-func generateRandomString() string {
-	if rand.Intn(10000) == 5000 {
-		return "null"
-	}
-	asciiChars := "abcde"
-	var result []rune
-	for i := 0; i < 50; i++ {
-		result = append(result, rune(asciiChars[rand.Intn(len(asciiChars))]))
-	}
-	return fmt.Sprintf("'%s'", string(result))
-}
-
-func buildDSN(addr string, user string, port, db string, params ...string) string {
-	// Commonly, the password is always empty in my development environment
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s", user, "", addr, port, db)
-	if len(params) > 0 {
-		dsn += "?" + strings.Join(params, "&")
-	}
-	return dsn
-}
-
-func getDB() (*sql.DB, error) {
-	db, err := sql.Open("mysql", buildDSN(addr, user, port, dbName))
-	if err != nil {
-		return nil, err
-	}
-	if err := db.Ping(); err != nil {
-		return nil, err
-	}
-	return db, nil
-}
-
-func query(db *sql.DB, q string, splitter string) ([]string, int, error) {
-	rowValues := make([]string, 0)
-	count := 0
-	rows, err := db.Query(q)
-	if err != nil {
-		return rowValues, count, err
-	}
-	defer rows.Close()
-	cols, err := rows.Columns()
-	if err != nil {
-		return rowValues, count, err
-	}
-	values := make([]interface{}, len(cols))
-	results := make([]sql.NullString, len(cols))
-	for i := range values {
-		values[i] = &results[i]
-	}
-	for rows.Next() {
-		if err := rows.Scan(values...); err != nil {
-			return rowValues, count, err
-		}
-		allFields := ""
-		for _, v := range results {
-			if !v.Valid {
-				allFields += "NULL"
-				continue
-			}
-			allFields += v.String
-			allFields += splitter
-		}
-		rowValues = append(rowValues, allFields)
-	}
-	if err := rows.Err(); err != nil {
-		return rowValues, count, err
-	}
-	return rowValues, count, nil
-}
+// const table1Name = "p1000"
+// const table2Name = "ct2"
 
 func runInsertWorker(thdID int, rowNum int) {
 	fmt.Printf("Thread %d is running...\n", thdID)
@@ -129,15 +28,12 @@ func runInsertWorker(thdID int, rowNum int) {
 	}
 
 	insertT1SQL := ""
-	insertT2SQL := ""
 	appendedRowCount := 0
 	for i := 0; i < rowNum; i++ {
 		if len(insertT1SQL) == 0 {
-			insertT1SQL = fmt.Sprintf("insert into %s values (%d, %s, %s, %s, %s)", table1Name, keyID, generateRandomInt(), generateRandomFloat(), generateRandomString(), generateRandomDatetime())
-			insertT2SQL = fmt.Sprintf("insert into %s values (%d, %s, %s, %s, %s)", table2Name, keyID, generateRandomInt(), generateRandomFloat(), generateRandomString(), generateRandomDatetime())
+			insertT1SQL = fmt.Sprintf("insert into %s values (%s, '%s')", table1Name, generateRandomInt(), generateRandomString(rand.Intn(20)))
 		} else {
-			insertT1SQL = fmt.Sprintf("%s, (%d, %s, %s, %s, %s)", insertT1SQL, keyID, generateRandomInt(), generateRandomFloat(), generateRandomString(), generateRandomDatetime())
-			insertT2SQL = fmt.Sprintf("%s, (%d, %s, %s, %s, %s)", insertT2SQL, keyID, generateRandomInt(), generateRandomFloat(), generateRandomString(), generateRandomDatetime())
+			insertT1SQL = fmt.Sprintf("%s, (%s, '%s')", insertT1SQL, generateRandomInt(), generateRandomString(rand.Intn(20)))
 		}
 
 		appendedRowCount++
@@ -152,12 +48,8 @@ func runInsertWorker(thdID int, rowNum int) {
 			if err != nil {
 				panic(fmt.Sprintf("Fail to insert: %s, error: %v", insertT1SQL, err))
 			}
-			_, err = db.Exec(insertT2SQL)
-			if err != nil {
-				panic(fmt.Sprintf("Fail to insert: %s, error: %v", insertT2SQL, err))
-			}
+
 			insertT1SQL = ""
-			insertT2SQL = ""
 			appendedRowCount = 0
 		}
 	}
@@ -167,11 +59,59 @@ func runInsertWorker(thdID int, rowNum int) {
 		if err != nil {
 			panic(fmt.Sprintf("Fail to insert: %s, error: %v", insertT1SQL, err))
 		}
-		_, err = db.Exec(insertT2SQL)
-		if err != nil {
-			panic(fmt.Sprintf("Fail to insert: %s, error: %v", insertT2SQL, err))
-		}
 	}
+}
+
+func runWorkerForTCMSImpl() {
+	db, err := getDB()
+	if err != nil {
+		panic(fmt.Sprintf("Fail to get db. error: %v", err))
+	}
+
+	defer func() {
+		db.Close()
+	}()
+
+	sql := "select group_concat(distinct col0, col1) from t6 group by col2 limit 30;"
+
+	ret, err := query(db, sql, " ")
+	if err != nil {
+		panic(err)
+	}
+
+	for _, res := range ret {
+		fmt.Println(res)
+	}
+
+	for i, res := range ret {
+		strs := strings.Split(res, ",")
+		sort.Slice(strs, func(i, j int) bool {
+			return strs[i] < strs[j]
+		})
+		newResStr := ""
+		for _, item := range strs {
+			newResStr += item
+		}
+		ret[i] = newResStr
+	}
+
+	fmt.Println("----------------")
+
+	for _, res := range ret {
+		fmt.Println(res)
+	}
+}
+
+func runWorkerForTCMS(threadNum int) {
+	wg := &sync.WaitGroup{}
+	wg.Add(threadNum)
+	for i := range threadNum {
+		go func(i int) {
+			runWorkerForTCMSImpl()
+			wg.Done()
+		}(i)
+	}
+	wg.Wait()
 }
 
 func runQueryWorker(thdID int, count *atomic.Int64, query_num int64, sql string, variable string) {
@@ -185,6 +125,11 @@ func runQueryWorker(thdID int, count *atomic.Int64, query_num int64, sql string,
 	}()
 
 	_, err = db.Exec(fmt.Sprintf("set tidb_hash_join_version=%s", variable))
+	if err != nil {
+		panic(fmt.Sprintf("error: %v", err))
+	}
+
+	_, err = db.Exec("set tidb_mem_quota_query=20737418240")
 	if err != nil {
 		panic(fmt.Sprintf("error: %v", err))
 	}
@@ -213,27 +158,32 @@ func runImpl(threadNum int, query_num int64, sql string, variable string) (qps f
 	wg.Wait()
 
 	elapsed := Round(time.Since(start).Seconds(), 2)
+	fmt.Printf("elapsed: %f\n", elapsed)
 	return float64(totalExecutedNum.Load()) / elapsed
 }
 
 func run() {
-	variables := []string{"legacy", "optimized"}
-	buildTableNames := []string{"t10", "t30", "t100", "t300", "t1000"}
-	threadNums := []int{20, 50, 100, 200, 400}
-	totalQueryNum := 20000
-	repeatNum := 10
+	variables := []string{"optimized"}
+	// variables := []string{"optimized", "legacy"}
+	rowNums := []int{1000}
+	// rowNums := []int{100, 500, 1000}
+	// threadNums := []int{50, 100, 400}
+	threadNums := []int{20}
+	totalQueryNum := 10000
+	repeatNum := 1000
 	for _, variable := range variables {
 		fmt.Printf("----------Hash Join Type: %s----------\n", variable)
-		for _, tableName := range buildTableNames {
-			sql := fmt.Sprintf("explain analyze select /*+ HASH_JOIN_BUILD(%s) */ * from probe_t join %s on %s.col0 = probe_t.col0 and %s.col1 = probe_t.col1;", tableName, tableName, tableName, tableName)
+		for _, rowNum := range rowNums {
+			sql := "explain analyze select /*+ HASH_JOIN_BUILD(b1000) */ * from p1000 join b1000 on p1000.col0 = b1000.col0 and p1000.col1 = b1000.col1;"
+			// sql := "explain analyze SELECT /*+ HASH_JOIN(lineitem) */ COUNT(*) FROM orders JOIN lineitem ON l_orderkey = o_orderkey;"
 			for _, threadNum := range threadNums {
-				maxQPS := float64(0)
+				totalQPS := float64(0)
 				for range repeatNum {
 					qps := runImpl(threadNum, int64(totalQueryNum/threadNum), sql, variable)
-					maxQPS = math.Max(qps, maxQPS)
+					totalQPS += qps
 				}
 
-				fmt.Printf("var: %s, thread_num: %d, build table name: %s, qps: %.2f\n", variable, threadNum, tableName, maxQPS)
+				fmt.Printf("var: %s, row num: %d, thread_num: %d, qps: %.2f\n", variable, rowNum, threadNum, totalQPS/float64(repeatNum))
 			}
 		}
 	}
