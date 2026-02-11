@@ -7,11 +7,9 @@ import (
 )
 
 const addr = "10.2.12.124"
-const port = "7001"
+const port = "9001"
 const user = "root"
 const dbName = "test"
-
-var AllowCommentParam = "comments=true"
 
 func buildDSN(addr string, user string, port, db string, params ...string) string {
 	// Commonly, the password is always empty in my development environment
@@ -23,7 +21,7 @@ func buildDSN(addr string, user string, port, db string, params ...string) strin
 }
 
 func getDB() (*sql.DB, error) {
-	db, err := sql.Open("mysql", buildDSN(addr, user, port, dbName, AllowCommentParam))
+	db, err := sql.Open("mysql", buildDSN(addr, user, port, dbName))
 	if err != nil {
 		return nil, err
 	}
