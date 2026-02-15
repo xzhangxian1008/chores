@@ -6,6 +6,7 @@ import random
 import datetime
 import tpch
 import config
+import util
 from datetime import datetime
 from sql import Sql
 from sql import tpch_sqls
@@ -151,7 +152,7 @@ def runNoErrorSqls():
 
 
 taskId = 0
-insertNum = 20000
+insertNum = 100000
 
 def runInsertSqls():
     global lock
@@ -167,11 +168,11 @@ def runInsertSqls():
         with connection.cursor() as cursor:
             i = startNum
             while i < endNum:
-                insert_sql = "insert into reproduce values('%s', '%s', '%s')" % (i, i%10000, i%10000)
+                insert_sql = "insert into t1 values %s" % util.generateValue()
                 i += 1
                 j = 1
                 while j < 10000:
-                    insert_sql = "%s, ('%d', '%d', '%d')" % (insert_sql, i, i%10000, i%10000)
+                    insert_sql = "%s, %s" % (insert_sql, util.generateValue())
                     i += 1
                     j += 1
                 insert_sql += ';'
@@ -209,6 +210,8 @@ def parseArgs():
     return args
 
 def runInMode1():
+    global isShutdown
+    global thread_num
     threads = []
     while (thread_num > 0):
         thread = threading.Thread(target=runInsertSqls)
@@ -216,7 +219,6 @@ def runInMode1():
         threads.append(thread)
         thread_num -= 1
 
-    start = time.time()
     time.sleep(test_time)
 
     lock.acquire()
@@ -226,9 +228,7 @@ def runInMode1():
     for thread in threads:
         thread.join()
 
-def runInMode2():
-    executeSQL("select L_ORDERKEY, L_PARTKEY, L_SHIPINSTRUCT from tpch1.lineitem limit 10;")
-
+# python main.py --thread_num=1 --port=7001
 if __name__ == "__main__":
     print("Start Time: ", datetime.now())
     args = parseArgs()
@@ -240,8 +240,8 @@ if __name__ == "__main__":
 
     print("host: %s, port: %d, database: %s, test_time: %ds, thread_num: %d" % (config.target_addr, config.target_port, config.target_database, test_time, thread_num))
 
-    # runInMode1()
-    runInMode2()
+    runInMode1()
+    # runInMode2()
 
     printExecutionTime()
     print("End Time: ", datetime.now())

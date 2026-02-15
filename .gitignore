@@ -2,7 +2,10 @@ cpp_proj/build
 cpp/build
 cpp/*.o
 cpp/core*
-cpp/m
+cpp/main
+cpp/server
+cpp/client
+cpp/rocksdb/*
 
 network/client
 network/server
@@ -10,3 +13,5 @@ network/server
 scripts/__pycache__
 
 python/__pycache__
+
+.vscode

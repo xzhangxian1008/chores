@@ -1,8 +1,6 @@
 #include "bench.h"
 #include "Stopwatch.h"
 #include "util.h"
-#include <leveldb/options.h>
-#include <leveldb/slice.h>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -12,36 +10,7 @@ namespace Bench {
 
 template<bool is_seq>
 void writeBench(ThreadArgs * arg) {
-    leveldb::DB * db = arg->shared_args_->db_;
-    leveldb::WriteOptions write_option = arg->shared_args_->write_option_;
-    leveldb::WriteBatch batch;
-    KeyBuffer key_buf;
-    ValueGenerator value_gen;
-    size_t entry_num = arg->shared_args_->entry_num;
-    size_t entry_num_per_batch = arg->shared_args_->entry_num_per_batch_;
-    size_t value_size = arg->shared_args_->value_size_;
-    RandNum num_rander(0, entry_num*10);
-    int k;
 
-    for (size_t i = 0; i < entry_num; i += entry_num_per_batch) {
-        batch.Clear();
-        for (size_t j =0; j < entry_num_per_batch; j++) {
-            if constexpr (is_seq)
-                k = i + j;
-            else
-                k = num_rander.getNum();
-
-            key_buf.append(k);
-            batch.Put(key_buf.getSlice(), value_gen.generate(value_size));
-            key_buf.reset();
-        }
-
-        auto status = db->Write(write_option, &batch);
-        if (!status.ok()) {
-            std::fprintf(stderr, "put error: %s\n", status.ToString().c_str());
-            std::exit(1);
-        }
-    }
 }
 
 void run_thread_impl(ThreadArgs * arg) {
@@ -49,7 +18,7 @@ void run_thread_impl(ThreadArgs * arg) {
         case BenchType::fillSeq:
             writeBench<true>(arg);
             break;
-        case BenchType::fillrandom:
+        case BenchType::fillRandom:
             writeBench<false>(arg);
             break;
     }
@@ -81,23 +50,21 @@ void run_thread(void* arg) {
 }
 
 void Benchmark::run() {
+    print("Start bench...");
     size_t thread_num = param_.thread_num_;
 
     std::shared_ptr<ThreadSharedArgs> shared_args = std::make_shared<ThreadSharedArgs>();
+    shared_args->db_ = db_;
     shared_args->total_thread_num_ = thread_num;
     shared_args->running_thread_num_ = 0;
     shared_args->bench_type_ = param_.bench_type_;
     shared_args->entry_num = param_.entry_num_per_thread_;
+    shared_args->entry_num_per_batch_ = param_.entry_num_per_batch_;
 
     if (param_.value_size_ == 0)
         shared_args->value_size_ = DEFAULT_VALUE_SIZE;
     else
         shared_args->value_size_ = param_.value_size_;
-
-    switch (shared_args->bench_type_) {
-        default:
-            shared_args->entry_num_per_batch_ = 1;
-    }
 
     std::vector<std::thread> threads;
     std::vector<ThreadArgs> thread_args;

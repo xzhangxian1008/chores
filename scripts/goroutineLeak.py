@@ -7,7 +7,7 @@ class GoroutineStackInfo:
     
     def addContent(self, content):
         self.content += content
-    
+     
     def printInfo(self):
         print(self.content)
     

@@ -41,7 +41,7 @@ cls_tiflash_conf_directory = "%s/tiup_deploy/cls/tiflash-7003/conf" % prefix_pat
 dev_tidb_bin_directory = "%s/tiup_deploy/dev/tidb-7001/bin" % prefix_path
 cls_tidb_bin_directory = "%s/tiup_deploy/cls/tidb-8001/bin" % prefix_path
 
-tmp_cmd = ["cd /"]
+tmp_cmd = ["sudo lsof -i:7200 "]
 
 debugModeFlag = "debug"
 releaseModeFlag = "release"

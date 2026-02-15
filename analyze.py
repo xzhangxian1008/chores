@@ -1,5 +1,5 @@
 import os
-from matplotlib import pyplot as plt
+# from matplotlib import pyplot as plt
 
 file = "bench_result"
 query_num = 43
@@ -179,8 +179,11 @@ def paint(index):
     line_chart.paint("%s.png" % title)
 
 if __name__ == "__main__":
-    analyzeTiUPTPCH("tmp")
-    printTiUPResults()
+    a = 1.23435566
+    print("%.2f" % a)
+
+    # analyzeTiUPTPCH("tmp")
+    # printTiUPResults()
 
     # analyze ClickHouse bench data
     # analyzeCHBench()

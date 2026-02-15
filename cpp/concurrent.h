@@ -13,7 +13,7 @@ std::mutex mu;
 std::condition_variable cv;
 size_t thread_ready_num = 0;
 std::atomic_bool start(false);
-static constexpr size_t thd_num = 300;
+static constexpr size_t thd_num = 2;
 constexpr size_t action_num = 9999999;
 constexpr size_t data_num_per_thd = 1024;
 // constexpr size_t padding_data = 0; // 10 * 1024 * 1024 = 10Mbi
@@ -29,6 +29,10 @@ SharingMem sharing_mem;
 size_t convertToIndex(int index, size_t i) {
     size_t actual_i = i % data_num_per_thd;
     return actual_i + (index * (data_num_per_thd + padding_data));
+}
+
+void run(int idx) {
+    std::cout << "run: " << idx << std::endl;
 }
 
 template <typename Func>
