@@ -7,7 +7,7 @@
 #include <string>
 
 constexpr std::string_view SERVER_IP = "127.0.0.1";
-constexpr int PORT = 8080;
+constexpr int PORT = 8765;
 constexpr int BUFFER_SIZE = 1024;
 
 class TcpClient {
@@ -48,6 +48,7 @@ public:
         std::string line;
         while (std::getline(std::cin, line)) {
             line += "\n";  // 添加换行作为消息分隔符
+            std::cout << "Send: " << line << std::endl;
             ssize_t sent = send(sockFd_, line.c_str(), line.length(), 0);
             if (sent == -1) {
                 perror("send");

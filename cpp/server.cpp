@@ -1,238 +1,333 @@
-#include <iostream>
-#include <cstring>
-#include <unistd.h>
-#include <fcntl.h>
 #include <arpa/inet.h>
-#include <sys/epoll.h>
+#include <csignal>
+#include <cstring>
+#include <iostream>
+#include <mutex>
+#include <string>
+#include <thread>
+#include <unordered_set>
+#include <unistd.h>
+#include <vector>
 #include <sys/socket.h>
-#include <map>
+#include <rocksdb/db.h>
 
-constexpr int PORT = 8080;
-constexpr int MAX_EVENTS =  1024;
-constexpr int BUFFER_SIZE = 1024;
+#include "util.h"
 
-// 设置非阻塞
-int setNonBlocking(int fd) {
-    int flags = fcntl(fd, F_GETFL, 0);
-    if (flags == -1) return -1;
-    return fcntl(fd, F_SETFL, flags | O_NONBLOCK);
-}
+const std::string ROCKSDB_PAth = "/DATA/disk3/xzx/chores/cpp/server";
 
-class EpollServer {
-private:
-    int listenFd_;
-    int epollFd_;
-    std::map<int, std::string> clientBuffers_;  // 每个客户端的读取缓冲
+constexpr std::string_view GET_OP = "get";
+constexpr std::string_view PUT_OP = "put";
+constexpr std::string_view DELETE_OP = "delete";
 
-public:
-    EpollServer() : listenFd_(-1), epollFd_(-1) {}
+constexpr int PORT = 8765;
+constexpr int BACK_LOG = 128;
+constexpr size_t BUFFER_SIZE = 4096;
+volatile std::sig_atomic_t g_stop = 0;
+volatile std::sig_atomic_t g_listen_fd = -1;
+std::mutex g_clients_mutex;
+std::unordered_set<int> g_client_fds;
 
-    ~EpollServer() {
-        if (epollFd_ != -1) close(epollFd_);
-        if (listenFd_ != -1) close(listenFd_);
-    }
+rocksdb::DB * db;
 
-    bool init() {
-        // 创建监听 socket
-        listenFd_ = socket(AF_INET, SOCK_STREAM, 0);
-        if (listenFd_ == -1) {
-            perror("socket");
-            return false;
-        }
+struct Status {
+    enum Code {
+        Ok,
+        Error
+    };
 
-        // 端口复用
-        int opt = 1;
-        setsockopt(listenFd_, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+    Status() = default;
 
-        // 绑定
-        sockaddr_in addr{};
-        addr.sin_family = AF_INET;
-        addr.sin_addr.s_addr = INADDR_ANY;
-        addr.sin_port = htons(PORT);
+    void setCode(Code code) { code_ = code; }
+    void setMsg(const String & msg) { msg_ = msg; }
+    void setErrMsg(const String & msg) { error_msg_ = msg; }
 
-        if (bind(listenFd_, (sockaddr*)&addr, sizeof(addr)) == -1) {
-            perror("bind");
-            return false;
-        }
+    bool isOk() const { return code_ == Code::Ok; }
+    std::string getMsg() const { return msg_; }
+    std::string getErrMsg() const { return error_msg_; }
 
-        // 监听
-        if (listen(listenFd_, SOMAXCONN) == -1) {
-            perror("listen");
-            return false;
-        }
-
-        // 创建 epoll
-        epollFd_ = epoll_create1(0);
-        if (epollFd_ == -1) {
-            perror("epoll_create1");
-            return false;
-        }
-
-        // 添加监听 socket 到 epoll
-        epoll_event ev{};
-        ev.events = EPOLLIN;
-        ev.data.fd = listenFd_;
-        if (epoll_ctl(epollFd_, EPOLL_CTL_ADD, listenFd_, &ev) == -1) {
-            perror("epoll_ctl: listenFd");
-            return false;
-        }
-
-        std::cout << "Server listening on port " << PORT << std::endl;
-        return true;
-    }
-
-    void run() {
-        epoll_event events[MAX_EVENTS];
-
-        while (true) {
-            // 等待事件，-1 表示阻塞直到有事件，1000 表示超时 1 秒
-            int nfds = epoll_wait(epollFd_, events, MAX_EVENTS, 1000);
-            
-            if (nfds == -1) {
-                perror("epoll_wait");
-                break;
-            }
-
-            if (nfds == 0) {
-                // 超时，可以做心跳检测等
-                continue;
-            }
-
-            for (int i = 0; i < nfds; ++i) {
-                int fd = events[i].data.fd;
-                uint32_t ev = events[i].events;
-
-                // 错误处理
-                if (ev & (EPOLLERR | EPOLLHUP)) {
-                    std::cout << "Client " << fd << " error/hup" << std::endl;
-                    closeClient(fd);
-                    continue;
-                }
-
-                // 新连接
-                if (fd == listenFd_) {
-                    acceptNewConnection();
-                }
-                // 客户端数据可读
-                else if (ev & EPOLLIN) {
-                    handleRead(fd);
-                }
-                // 客户端可写（用于大流量控制，这里简单处理）
-                else if (ev & EPOLLOUT) {
-                    // 简单示例：切换回只读模式
-                    epoll_event ev{};
-                    ev.events = EPOLLIN | EPOLLET;  // ET 模式
-                    ev.data.fd = fd;
-                    epoll_ctl(epollFd_, EPOLL_CTL_MOD, fd, &ev);
-                }
-            }
-        }
-    }
-
-private:
-    void acceptNewConnection() {
-        sockaddr_in clientAddr{};
-        socklen_t len = sizeof(clientAddr);
-        
-        // 边缘触发模式下需要循环 accept
-        while (true) {
-            int clientFd = accept(listenFd_, (sockaddr*)&clientAddr, &len);
-            if (clientFd == -1) {
-                if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                    break;  // 没有更多连接了
-                }
-                perror("accept");
-                break;
-            }
-
-            // 设置非阻塞
-            setNonBlocking(clientFd);
-
-            // 添加客户端到 epoll，使用 ET 模式（边缘触发）
-            epoll_event ev{};
-            ev.events = EPOLLIN | EPOLLET;  // 读事件 + 边缘触发
-            ev.data.fd = clientFd;
-            
-            if (epoll_ctl(epollFd_, EPOLL_CTL_ADD, clientFd, &ev) == -1) {
-                perror("epoll_ctl: clientFd");
-                close(clientFd);
-                return;
-            }
-
-            char ip[INET_ADDRSTRLEN];
-            inet_ntop(AF_INET, &clientAddr.sin_addr, ip, sizeof(ip));
-            std::cout << "New client " << clientFd 
-                      << " from " << ip << ":" << ntohs(clientAddr.sin_port) 
-                      << " (total: " << clientBuffers_.size() + 1 << ")" << std::endl;
-            
-            clientBuffers_[clientFd] = "";  // 初始化缓冲区
-        }
-    }
-
-    void handleRead(int fd) {
-        char buf[BUFFER_SIZE];
-        
-        // ET 模式必须循环读到 EAGAIN
-        while (true) {
-            ssize_t n = read(fd, buf, sizeof(buf));
-            
-            if (n > 0) {
-                // 收到数据
-                clientBuffers_[fd].append(buf, n);
-                
-                // 检查是否收到完整消息（简单协议：以 \n 结尾）
-                size_t pos;
-                while ((pos = clientBuffers_[fd].find('\n')) != std::string::npos) {
-                    std::string msg = clientBuffers_[fd].substr(0, pos);
-                    clientBuffers_[fd].erase(0, pos + 1);
-                    
-                    processMessage(fd, msg);
-                }
-            }
-            else if (n == 0) {
-                // 客户端关闭
-                std::cout << "Client " << fd << " closed connection" << std::endl;
-                closeClient(fd);
-                return;
-            }
-            else { // n == -1
-                if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                    break;  // 数据读完了（ET 模式正常退出）
-                }
-                else if (errno == EINTR) {
-                    continue;  // 被信号中断，重试
-                }
-                else {
-                    perror("read");
-                    closeClient(fd);
-                    return;
-                }
-            }
-        }
-    }
-
-    void processMessage(int fd, const std::string& msg) {
-        std::cout << "Client " << fd << " says: " << msg << std::endl;
-        
-        // 回复客户端
-        std::string response = "Echo: " + msg + "\n";
-        write(fd, response.c_str(), response.length());
-        // 注意：生产环境应该处理 write 的部分发送和 EAGAIN
-    }
-
-    void closeClient(int fd) {
-        epoll_ctl(epollFd_, EPOLL_CTL_DEL, fd, nullptr);
-        close(fd);
-        clientBuffers_.erase(fd);
-        std::cout << "Client " << fd << " removed" << std::endl;
-    }
+    Code code_;
+    std::string msg_;
+    std::string error_msg_;
 };
 
+void parseMessage(
+    const std::string & msg,
+    std::string & op,
+    std::string & key,
+    std::string & val
+) {
+    char delimiter = ' ';
+    std::vector<std::string> tokens;
+    size_t start = 0;
+    size_t end = msg.find(delimiter);
+    
+    while (end != std::string::npos) {
+        tokens.push_back(msg.substr(start, end - start));
+        start = end + 1;
+        end = msg.find(delimiter, start);
+    }
+    tokens.push_back(msg.substr(start));
+    
+    if (tokens.size() == 0) {
+        std::cout << "Nothing is in the request\n";
+    } else if (tokens.size() > 3) {
+        std::cout << "Warning: tokens.size() > 3\n";
+    } else {
+        auto token_count = tokens.size();
+        op = tokens[0];
+        if (token_count > 1)
+            key = tokens[1];
+        if (token_count > 2)
+            val = tokens[2];
+    }
+}
+
+struct ClientWorkSpace {
+    Status processMessage(const std::string & msg) {
+        parseMessage(msg, op_, key_, val_);
+        
+        Status ret_status;
+        if (op_ == GET_OP) {
+            auto op_status = db->Get(rocksdb::ReadOptions(), key_, &val_);
+            if (op_status.ok()) {
+                ret_status.setCode(Status::Code::Ok);
+                ret_status.setMsg("Get success. <key: " + key_ + ", val: " + val_ + ">");
+            } else {
+                ret_status.setCode(Status::Code::Error);
+                ret_status.setErrMsg("Fail to execute 'get' op for key " + key_);
+            }
+        } else if (op_ == PUT_OP) {
+            auto op_status = db->Put(rocksdb::WriteOptions(), key_, val_);
+            if (op_status.ok()) {
+                ret_status.setCode(Status::Code::Ok);
+                ret_status.setMsg("Put success. <key: " + key_ + ", val: " + val_ + ">");
+            } else {
+                ret_status.setCode(Status::Code::Error);
+                ret_status.setErrMsg("Fail to execute 'put' op for <key: " + key_ + "," + " val: " + val_ + ">");
+            }
+        } else if (op_ == DELETE_OP) {
+            auto op_status =  db->Delete(rocksdb::WriteOptions(), key_);
+            if (op_status.ok()) {
+                ret_status.setCode(Status::Code::Ok);
+                ret_status.setMsg("Delete success. key: " + key_);
+            } else {
+                ret_status.setCode(Status::Code::Error);
+                ret_status.setErrMsg("Fail to execute 'delete' op for key " + key_);
+            }
+        } else {
+            ret_status.setCode(Status::Code::Error);
+            ret_status.setErrMsg("Warning: unknown operation " + op_);
+        }
+
+        return ret_status;
+    }
+    
+    std::string buffer_;
+    std::string op_;
+    std::string key_;
+    std::string val_;
+};
+
+class ClientManager {
+public:
+    size_t getClientCount() {
+        std::lock_guard<std::mutex> lock(mu_);
+        return clients_.size();
+    }
+
+    void addClient(int client_fd) {
+        std::lock_guard<std::mutex> lock(mu_);
+        clients_.insert({client_fd, ClientWorkSpace()});
+    }
+
+    void deleteClient(int client_fd) {
+        std::lock_guard<std::mutex> lock(mu_);
+        clients_.erase(client_fd);
+    }
+
+    ClientWorkSpace * getClient(int client_fd) {
+        std::lock_guard<std::mutex> lock(mu_);
+        auto iter = clients_.find(client_fd);
+        if (iter == clients_.end())
+            throw std::exception();
+        return &(iter->second);
+    }
+private:
+    std::unordered_map<int, ClientWorkSpace> clients_;
+    std::mutex mu_;
+};
+
+ClientManager client_manager;
+
+void handleSignal(int) {
+    g_stop = 1;
+    if (g_listen_fd >= 0) {
+        // close is async-signal-safe and can unblock accept() immediately.
+        close(static_cast<int>(g_listen_fd));
+        g_listen_fd = -1;
+    }
+}
+
+void registerClientFd(int client_fd) {
+    std::lock_guard<std::mutex> lock(g_clients_mutex);
+    g_client_fds.insert(client_fd);
+}
+
+void unregisterClientFd(int client_fd) {
+    std::lock_guard<std::mutex> lock(g_clients_mutex);
+    g_client_fds.erase(client_fd);
+    client_manager.deleteClient(client_fd);
+}
+
+std::vector<int> snapshotClientFds() {
+    std::lock_guard<std::mutex> lock(g_clients_mutex);
+    return std::vector<int>(g_client_fds.begin(), g_client_fds.end());
+}
+
+void handleClient(int client_fd, sockaddr_in client_addr) {
+    char ip[INET_ADDRSTRLEN] = {0};
+    inet_ntop(AF_INET, &client_addr.sin_addr, ip, sizeof(ip));
+    int client_port = ntohs(client_addr.sin_port);
+    std::cout << "Client connected: " << ip << ":" << client_port << std::endl;
+
+    client_manager.addClient(client_fd);
+    auto * client = client_manager.getClient(client_fd);
+
+    std::vector<char> recv_buf(BUFFER_SIZE);
+    std::string pending_buffer;
+    while (!g_stop) {
+        ssize_t n = recv(client_fd, recv_buf.data(), recv_buf.size(), 0);
+        if (n > 0) {
+            pending_buffer.append(recv_buf.data(), static_cast<size_t>(n));
+
+            // 按行协议处理：只有读到 '\n' 才算一条完整消息。
+            size_t pos = 0;
+            while ((pos = pending_buffer.find('\n')) != std::string::npos) {
+                std::string msg = pending_buffer.substr(0, pos);
+                pending_buffer.erase(0, pos + 1);
+
+                std::cout << "[" << ip << ":" << client_port << "] " << msg << std::endl;
+
+                auto status = client->processMessage(msg);
+
+                std::string resp = "Echo: ";
+                if (status.isOk()) {
+                    resp = resp + status.getMsg() + "\n";
+                } else {
+                    resp = resp + status.getErrMsg() + "\n";
+                }
+
+                ssize_t sent = send(client_fd, resp.data(), resp.size(), 0);
+                if (sent < 0) {
+                    std::cerr << "send failed: " << std::strerror(errno) << std::endl;
+                    break;
+                }
+            }
+        } else if (n == 0) {
+            std::cout << "Client disconnected: " << ip << ":" << client_port << std::endl;
+            break;
+        } else {
+            if (errno == EINTR) {
+                continue;
+            }
+            if (g_stop && errno == EBADF) {
+                break;
+            }
+            std::cerr << "recv failed: " << std::strerror(errno) << std::endl;
+            break;
+        }
+    }
+
+    close(client_fd);
+    unregisterClientFd(client_fd);
+}
+
 int main() {
-    EpollServer server;
-    if (!server.init()) {
+    struct sigaction sa {};
+    sa.sa_handler = handleSignal;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
+    sigaction(SIGINT, &sa, nullptr);
+    sigaction(SIGTERM, &sa, nullptr);
+
+    int listen_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (listen_fd < 0) {
+        std::cerr << "socket failed: " << std::strerror(errno) << std::endl;
         return 1;
     }
-    server.run();
+    g_listen_fd = listen_fd;
+
+    int opt = 1;
+    if (setsockopt(listen_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
+        std::cerr << "setsockopt failed: " << std::strerror(errno) << std::endl;
+        close(listen_fd);
+        return 1;
+    }
+
+    sockaddr_in server_addr {};
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = INADDR_ANY;
+    server_addr.sin_port = htons(PORT);
+
+    if (bind(listen_fd, reinterpret_cast<sockaddr*>(&server_addr), sizeof(server_addr)) < 0) {
+        std::cerr << "bind failed: " << std::strerror(errno) << std::endl;
+        close(listen_fd);
+        return 1;
+    }
+
+    if (listen(listen_fd, BACK_LOG) < 0) {
+        std::cerr << "listen failed: " << std::strerror(errno) << std::endl;
+        close(listen_fd);
+        return 1;
+    }
+
+    std::cout << "Server listening on 0.0.0.0:" << PORT << std::endl;
+
+    rocksdb::Options options;
+    options.create_if_missing = true;
+    rocksdb::Status status = rocksdb::DB::Open(options, ROCKSDB_PAth, &db);
+    assert(status.ok());
+    std::cout << "Successfully init db. db path: " << ROCKSDB_PAth << std::endl;
+    std::cout << "Press Ctrl+C to stop." << std::endl;
+
+    std::vector<std::thread> workers;
+    while (!g_stop) {
+        sockaddr_in client_addr {};
+        socklen_t client_len = sizeof(client_addr);
+        int client_fd = accept(listen_fd, reinterpret_cast<sockaddr*>(&client_addr), &client_len);
+        if (client_fd < 0) {
+            if ((errno == EINTR || errno == EBADF) && g_stop) {
+                break;
+            }
+            if (errno == EINTR) {
+                continue;
+            }
+            std::cerr << "accept failed: " << std::strerror(errno) << std::endl;
+            continue;
+        }
+
+        registerClientFd(client_fd);
+        workers.emplace_back(handleClient, client_fd, client_addr);
+    }
+
+    if (listen_fd >= 0) {
+        close(listen_fd);
+        listen_fd = -1;
+        g_listen_fd = -1;
+    }
+
+    // Wake up blocking recv() in worker threads so they can exit quickly.
+    for (int client_fd : snapshotClientFds()) {
+        shutdown(client_fd, SHUT_RDWR);
+    }
+    for (auto & worker : workers) {
+        if (worker.joinable()) {
+            worker.join();
+        }
+    }
+
+    delete db;
+
+    std::cout << "Server stopped." << std::endl;
     return 0;
 }

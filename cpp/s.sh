@@ -7,11 +7,11 @@ then
 elif [ $1 = "server" ]
 then
     make server -j 6
-    LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH ./server
+    LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH ./ser
 elif [ $1 = "client" ]
 then
     make client -j 6
-    LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH ./client
+    LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH ./cli
 else
     echo "The compiler is else"
 fi
