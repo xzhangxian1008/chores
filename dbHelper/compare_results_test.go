@@ -302,6 +302,11 @@ func TestCompareOneSQLPairPrintsStageLogsAndTimingsOnSuccess(t *testing.T) {
 			t.Fatalf("comparison output does not contain %q:\n%s", want, output)
 		}
 	}
+	assertCompareStageStartTimes(t, output, []string{
+		"Executing expected SQL:",
+		"Executing actual SQL:",
+		"Comparing expected and actual result sets",
+	})
 }
 
 func TestCompareOneSQLPairPrintsTimingsOnFailure(t *testing.T) {
@@ -355,6 +360,30 @@ func TestSummarizeCompareSQLForLogLimitsUnicodeCharacters(t *testing.T) {
 	multilineSQL := "select  *\nfrom\tt"
 	if got := summarizeCompareSQLForLog(multilineSQL); got != "select * from t" {
 		t.Fatalf("multiline SQL summary = %q, want %q", got, "select * from t")
+	}
+}
+
+func assertCompareStageStartTimes(t *testing.T, output string, stageMarkers []string) {
+	t.Helper()
+	lines := strings.Split(output, "\n")
+	for _, stageMarker := range stageMarkers {
+		var timestamp string
+		for _, line := range lines {
+			if !strings.Contains(line, stageMarker) {
+				continue
+			}
+			startIndex := strings.Index(line, "start_time=")
+			if startIndex >= 0 {
+				timestamp = line[startIndex+len("start_time="):]
+				break
+			}
+		}
+		if timestamp == "" {
+			t.Fatalf("stage %q has no start_time in output:\n%s", stageMarker, output)
+		}
+		if _, err := time.Parse(time.RFC3339Nano, timestamp); err != nil {
+			t.Fatalf("stage %q has invalid start_time %q: %v", stageMarker, timestamp, err)
+		}
 	}
 }
 

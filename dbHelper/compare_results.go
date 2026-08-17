@@ -96,144 +96,7 @@ var (
 	// 		query: "",
 	// 	},
 	// },
-	compareResultSQLPairs = []compareSQLPair{
-		// --------------------- TPCH ---------------------
-		{
-			name: "tpch1",
-			expected: compareSQL{
-				setupSQLs: []string{
-					"set tidb_enforce_mpp=1",
-					"set tidb_opt_enable_mpp_shared_cte_execution=on",
-					"set tidb_max_bytes_before_tiflash_cte_spill=200000000000000",
-				},
-				query: "with cte1 as (select PS_PARTKEY, PS_SUPPKEY % 20000 as col0, length(PS_COMMENT) as col1, PS_COMMENT as col2 from partsupp where length(ps_comment) > 190) select t1.PS_PARTKEY, t1.col0, t1.col1, t1.col2 from cte1 t1 join cte1 t2 on t1.col0 = t2.col1",
-			},
-			actual: compareSQL{
-				setupSQLs: []string{
-					"set tidb_enforce_mpp=1",
-					"set tidb_opt_enable_mpp_shared_cte_execution=on",
-					fmt.Sprintf("set tidb_max_bytes_before_tiflash_cte_spill=%d", rand.Intn(20000000)+10),
-				},
-				query: "with cte1 as (select PS_PARTKEY, PS_SUPPKEY % 20000 as col0, length(PS_COMMENT) as col1, PS_COMMENT as col2 from partsupp where length(ps_comment) > 190) select t1.PS_PARTKEY, t1.col0, t1.col1, t1.col2 from cte1 t1 join cte1 t2 on t1.col0 = t2.col1",
-			},
-		},
-		{
-			name: "tpch2",
-			expected: compareSQL{
-				setupSQLs: []string{
-					"set tidb_enforce_mpp=1",
-					"set tidb_opt_enable_mpp_shared_cte_execution=on",
-					"set tidb_max_bytes_before_tiflash_cte_spill=200000000000000",
-				},
-				query: "with cte1 as (select PS_PARTKEY, substring(PS_COMMENT, 1, 30) as col0, substring(PS_COMMENT, 20, 30) as col1 from partsupp) select t1.PS_PARTKEY, t1.col0 from cte1 t1 join cte1 t2 on t1.col0 = t2.col1",
-			},
-			actual: compareSQL{
-				setupSQLs: []string{
-					"set tidb_enforce_mpp=1",
-					"set tidb_opt_enable_mpp_shared_cte_execution=on",
-					fmt.Sprintf("set tidb_max_bytes_before_tiflash_cte_spill=%d", rand.Intn(20000000)+10),
-				},
-				query: "with cte1 as (select PS_PARTKEY, substring(PS_COMMENT, 1, 30) as col0, substring(PS_COMMENT, 20, 30) as col1 from partsupp) select t1.PS_PARTKEY, t1.col0 from cte1 t1 join cte1 t2 on t1.col0 = t2.col1",
-			},
-		},
-		{
-			name: "tpch3",
-			expected: compareSQL{
-				setupSQLs: []string{
-					"set tidb_enforce_mpp=1",
-					"set tidb_opt_enable_mpp_shared_cte_execution=on",
-					"set tidb_max_bytes_before_tiflash_cte_spill=200000000000000",
-				},
-				query: "with cte1 as (select ps_partkey, ps_suppkey, (ps_supplycost + ps_partkey) * 13 as col0, (ps_supplycost + ps_suppkey) * 13 as col1 from partsupp) select t1.ps_partkey, t1.ps_suppkey, t1.col0 from cte1 t1 join cte1 t2 on t1.col0 = t2.col1",
-			},
-			actual: compareSQL{
-				setupSQLs: []string{
-					"set tidb_enforce_mpp=1",
-					"set tidb_opt_enable_mpp_shared_cte_execution=on",
-					fmt.Sprintf("set tidb_max_bytes_before_tiflash_cte_spill=%d", rand.Intn(20000000)+10),
-				},
-				query: "with cte1 as (select ps_partkey, ps_suppkey, (ps_supplycost + ps_partkey) * 13 as col0, (ps_supplycost + ps_suppkey) * 13 as col1 from partsupp) select t1.ps_partkey, t1.ps_suppkey, t1.col0 from cte1 t1 join cte1 t2 on t1.col0 = t2.col1",
-			},
-		},
-		{
-			name: "tpch4",
-			expected: compareSQL{
-				setupSQLs: []string{
-					"set tidb_enforce_mpp=1",
-					"set tidb_opt_enable_mpp_shared_cte_execution=on",
-					"set tidb_max_bytes_before_tiflash_cte_spill=200000000000000",
-				},
-				query: "with cte1 as (select o_orderkey, date_add(o_orderdate, interval o_orderkey%10000000 hour) as col0, date_add(o_orderdate, interval o_orderkey%20000000 hour) as col1 from orders) select t1.o_orderkey, t1.col0 from cte1 t1 join cte1 t2 on t1.col0 = t2.col1",
-			},
-			actual: compareSQL{
-				setupSQLs: []string{
-					"set tidb_enforce_mpp=1",
-					"set tidb_opt_enable_mpp_shared_cte_execution=on",
-					fmt.Sprintf("set tidb_max_bytes_before_tiflash_cte_spill=%d", rand.Intn(20000000)+10),
-				},
-				query: "with cte1 as (select o_orderkey, date_add(o_orderdate, interval o_orderkey%10000000 hour) as col0, date_add(o_orderdate, interval o_orderkey%20000000 hour) as col1 from orders) select t1.o_orderkey, t1.col0 from cte1 t1 join cte1 t2 on t1.col0 = t2.col1",
-			},
-		},
-		{
-			name: "tpch5",
-			expected: compareSQL{
-				setupSQLs: []string{
-					"set tidb_enforce_mpp=1",
-					"set tidb_opt_enable_mpp_shared_cte_execution=on",
-					"set tidb_max_bytes_before_tiflash_cte_spill=200000000000000",
-				},
-				query: "with cte1 as (select ps_partkey, substring(ps_comment, 1, 20) as col0, substring(ps_comment, 2, 4) as col1 from partsupp), cte2 as (select c_custkey, substring(c_comment, 1, 20) as col0, substring(c_address, 1, 4) as col1 from customer) select t3.c_custkey, t3.col1, t6.col2 from (select t1.c_custkey, t1.col1 as col1 from cte2 as t1 join cte1 as t2 on t1.col1 = t2.col1) as t3 join (select t4.ps_partkey, t5.c_custkey, t4.col0 as col2 from cte1 as t4 join cte2 as t5 on t4.col0 = t5.col0) as t6 on t3.c_custkey = t6.ps_partkey",
-			},
-			actual: compareSQL{
-				setupSQLs: []string{
-					"set tidb_enforce_mpp=1",
-					"set tidb_opt_enable_mpp_shared_cte_execution=on",
-					fmt.Sprintf("set tidb_max_bytes_before_tiflash_cte_spill=%d", rand.Intn(20000000)+10),
-				},
-				query: "with cte1 as (select ps_partkey, substring(ps_comment, 1, 20) as col0, substring(ps_comment, 2, 4) as col1 from partsupp), cte2 as (select c_custkey, substring(c_comment, 1, 20) as col0, substring(c_address, 1, 4) as col1 from customer) select t3.c_custkey, t3.col1, t6.col2 from (select t1.c_custkey, t1.col1 as col1 from cte2 as t1 join cte1 as t2 on t1.col1 = t2.col1) as t3 join (select t4.ps_partkey, t5.c_custkey, t4.col0 as col2 from cte1 as t4 join cte2 as t5 on t4.col0 = t5.col0) as t6 on t3.c_custkey = t6.ps_partkey",
-			},
-		},
-		{
-			name: "tpch6",
-			expected: compareSQL{
-				setupSQLs: []string{
-					"set tidb_enforce_mpp=1",
-					"set tidb_opt_enable_mpp_shared_cte_execution=on",
-					"set tidb_max_bytes_before_tiflash_cte_spill=200000000000000",
-				},
-				query: "with cte1 as (select ps_partkey, substring(ps_comment, 1, 20) as col0, substring(ps_comment, 2, 4) as col1, substring(ps_comment, 5, 4) as col2 from partsupp), cte2 as (select c_custkey, substring(c_comment, 1, 20) as col0, substring(c_address, 1, 4) as col1, substring(c_address, 5, 4) as col2 from customer) select t7.col0, t7.col1, t8.c_custkey from (select t3.c_custkey as col0, t3.col1 as col1, t6.col2 as col2 from (select t1.c_custkey, t2.col2 as col1 from cte2 as t1 join cte1 as t2 on t1.col1 = t2.col1) as t3 join (select t4.ps_partkey, t5.c_custkey, t4.col0 as col2 from cte1 as t4 join cte2 as t5 on t4.col0 = t5.col0) as t6 on t3.c_custkey = t6.ps_partkey) as t7 join cte2 as t8 on t7.col1 = t8.col2",
-			},
-			actual: compareSQL{
-				setupSQLs: []string{
-					"set tidb_enforce_mpp=1",
-					"set tidb_opt_enable_mpp_shared_cte_execution=on",
-					fmt.Sprintf("set tidb_max_bytes_before_tiflash_cte_spill=%d", rand.Intn(20000000)+10),
-				},
-				query: "with cte1 as (select ps_partkey, substring(ps_comment, 1, 20) as col0, substring(ps_comment, 2, 4) as col1, substring(ps_comment, 5, 4) as col2 from partsupp), cte2 as (select c_custkey, substring(c_comment, 1, 20) as col0, substring(c_address, 1, 4) as col1, substring(c_address, 5, 4) as col2 from customer) select t7.col0, t7.col1, t8.c_custkey from (select t3.c_custkey as col0, t3.col1 as col1, t6.col2 as col2 from (select t1.c_custkey, t2.col2 as col1 from cte2 as t1 join cte1 as t2 on t1.col1 = t2.col1) as t3 join (select t4.ps_partkey, t5.c_custkey, t4.col0 as col2 from cte1 as t4 join cte2 as t5 on t4.col0 = t5.col0) as t6 on t3.c_custkey = t6.ps_partkey) as t7 join cte2 as t8 on t7.col1 = t8.col2",
-			},
-		},
-		{
-			name: "tpch7",
-			expected: compareSQL{
-				setupSQLs: []string{
-					"set tidb_enforce_mpp=1",
-					"set tidb_opt_enable_mpp_shared_cte_execution=on",
-					"set tidb_max_bytes_before_tiflash_cte_spill=200000000000000",
-				},
-				query: "with cte1 as (select o_orderkey + 1 as col0, o_custkey as col1 from orders), cte2 as (select col0 + 1 as col0, col0 + 2 as col1 from cte1 union all select col0 + col1 as col0, col1 + 1 as col1 from cte1) select * from cte2 t1 join cte2 t2 on t1.col0 = t2.col1",
-			},
-			actual: compareSQL{
-				setupSQLs: []string{
-					"set tidb_enforce_mpp=1",
-					"set tidb_opt_enable_mpp_shared_cte_execution=on",
-					fmt.Sprintf("set tidb_max_bytes_before_tiflash_cte_spill=%d", rand.Intn(20000000)+10),
-				},
-				query: "with cte1 as (select o_orderkey + 1 as col0, o_custkey as col1 from orders), cte2 as (select col0 + 1 as col0, col0 + 2 as col1 from cte1 union all select col0 + col1 as col0, col1 + 1 as col1 from cte1) select * from cte2 t1 join cte2 t2 on t1.col0 = t2.col1",
-			},
-		},
-	}
-	// --------------------- TPCDS ---------------------
-	// --------------------- Customized Dataset ---------------------
+	compareResultSQLPairs = []compareSQLPair{}
 )
 
 // ------------------------------------------------------------
@@ -332,12 +195,12 @@ func printCompareResultConfig() {
 	fmt.Printf("compareResultDBConfig.dbName=%q\n", compareResultDBConfig.dbName)
 	fmt.Printf("compareResultDBConfig.params=%q\n", compareResultDBConfig.params)
 	fmt.Printf("compareResultSQLPairs.count=%d\n", len(compareResultSQLPairs))
-	for pairIndex, pair := range compareResultSQLPairs {
-		pairPrefix := fmt.Sprintf("compareResultSQLPairs[%d]", pairIndex)
-		fmt.Printf("%s.name=%q\n", pairPrefix, pair.name)
-		printCompareSQLConfig(pairPrefix+".expected", pair.expected)
-		printCompareSQLConfig(pairPrefix+".actual", pair.actual)
-	}
+	// for pairIndex, pair := range compareResultSQLPairs {
+	// 	pairPrefix := fmt.Sprintf("compareResultSQLPairs[%d]", pairIndex)
+	// 	fmt.Printf("%s.name=%q\n", pairPrefix, pair.name)
+	// 	printCompareSQLConfig(pairPrefix+".expected", pair.expected)
+	// 	printCompareSQLConfig(pairPrefix+".actual", pair.actual)
+	// }
 	fmt.Println("========== END COMPARE CONFIG ==========")
 }
 
@@ -360,22 +223,34 @@ func compareConfiguredFiles() (resultErr error) {
 		return errors.New("file comparison requires both compareResultExpectedFile and compareResultActualFile")
 	}
 
-	writeCompareLog("[%s] Reading expected result file", label)
 	expectedStart := time.Now()
+	writeCompareLog(
+		"[%s] Reading expected result file, start_time=%s",
+		label,
+		expectedStart.Format(time.RFC3339Nano),
+	)
 	expected, err := readResultFile(compareResultExpectedFile)
 	timings.expectedDuration = time.Since(expectedStart)
 	if err != nil {
 		return fmt.Errorf("read expected result file %q: %w", compareResultExpectedFile, err)
 	}
-	writeCompareLog("[%s] Reading actual result file", label)
 	actualStart := time.Now()
+	writeCompareLog(
+		"[%s] Reading actual result file, start_time=%s",
+		label,
+		actualStart.Format(time.RFC3339Nano),
+	)
 	actual, err := readResultFile(compareResultActualFile)
 	timings.actualDuration = time.Since(actualStart)
 	if err != nil {
 		return fmt.Errorf("read actual result file %q: %w", compareResultActualFile, err)
 	}
-	writeCompareLog("[%s] Comparing expected and actual result sets", label)
 	comparisonStart := time.Now()
+	writeCompareLog(
+		"[%s] Comparing expected and actual result sets, start_time=%s",
+		label,
+		comparisonStart.Format(time.RFC3339Nano),
+	)
 	if err := compareResultRows(expected, actual); err != nil {
 		timings.comparisonDuration = time.Since(comparisonStart)
 		return err
@@ -656,24 +531,38 @@ func compareOneSQLPairWithLabel(ctx context.Context, db *sql.DB, pair compareSQL
 		timings.printSummary(label, resultErr)
 	}()
 
-	writeCompareLog("[%s] Executing expected SQL: %q", label, summarizeCompareSQLForLog(pair.expected.query))
 	expectedStart := time.Now()
+	writeCompareLog(
+		"[%s] Executing expected SQL: %q, start_time=%s",
+		label,
+		summarizeCompareSQLForLog(pair.expected.query),
+		expectedStart.Format(time.RFC3339Nano),
+	)
 	expected, err := executeCompareSQL(ctx, db, pair.expected)
 	timings.expectedDuration = time.Since(expectedStart)
 	if err != nil {
 		return fmt.Errorf("execute expected SQL: %w", err)
 	}
 
-	writeCompareLog("[%s] Executing actual SQL: %q", label, summarizeCompareSQLForLog(pair.actual.query))
 	actualStart := time.Now()
+	writeCompareLog(
+		"[%s] Executing actual SQL: %q, start_time=%s",
+		label,
+		summarizeCompareSQLForLog(pair.actual.query),
+		actualStart.Format(time.RFC3339Nano),
+	)
 	actual, err := executeCompareSQL(ctx, db, pair.actual)
 	timings.actualDuration = time.Since(actualStart)
 	if err != nil {
 		return fmt.Errorf("execute actual SQL: %w", err)
 	}
 
-	writeCompareLog("[%s] Comparing expected and actual result sets", label)
 	comparisonStart := time.Now()
+	writeCompareLog(
+		"[%s] Comparing expected and actual result sets, start_time=%s",
+		label,
+		comparisonStart.Format(time.RFC3339Nano),
+	)
 	resultErr = compareResultRows(expected, actual)
 	timings.comparisonDuration = time.Since(comparisonStart)
 	return resultErr
