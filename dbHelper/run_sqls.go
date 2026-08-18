@@ -55,7 +55,6 @@ var (
 // ----------------------------------------------------------------
 
 const (
-	runSQLsTaskName       = "run-sqls"
 	runSQLErrorMaxRunes   = 100
 	runSQLPreviewMaxRunes = 120
 )

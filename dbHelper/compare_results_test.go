@@ -412,7 +412,7 @@ func TestCompareDatabaseCLIOverrides(t *testing.T) {
 	t.Cleanup(func() {
 		compareResultDBConfig = originalConfig
 	})
-	applyCompareDBCLIOverrides(options.compareDBOverrides)
+	applyDBCLIOverrides(&compareResultDBConfig, options.dbOverrides)
 	if compareResultDBConfig.address != "192.0.2.10" ||
 		compareResultDBConfig.port != "4406" ||
 		compareResultDBConfig.user != "cli-user" ||
@@ -425,13 +425,13 @@ func TestCompareDatabaseCLIOverrides(t *testing.T) {
 		t.Fatal(err)
 	}
 	before := compareResultDBConfig
-	applyCompareDBCLIOverrides(withoutOverrides.compareDBOverrides)
+	applyDBCLIOverrides(&compareResultDBConfig, withoutOverrides.dbOverrides)
 	if !reflect.DeepEqual(compareResultDBConfig, before) {
 		t.Fatalf("hard-coded config changed without CLI overrides: got %+v, want %+v", compareResultDBConfig, before)
 	}
 }
 
-func TestCompareDatabaseCLIOverrideValidation(t *testing.T) {
+func TestDatabaseCLIOverrideValidation(t *testing.T) {
 	positionalOptions, err := parseCommandLineOptions([]string{
 		"compare-results",
 		"--address", "198.51.100.20",
@@ -441,8 +441,8 @@ func TestCompareDatabaseCLIOverrideValidation(t *testing.T) {
 		t.Fatal(err)
 	}
 	if positionalOptions.taskName != compareResultsTaskName ||
-		positionalOptions.compareDBOverrides.address.value != "198.51.100.20" ||
-		positionalOptions.compareDBOverrides.port.value != "4001" {
+		positionalOptions.dbOverrides.address.value != "198.51.100.20" ||
+		positionalOptions.dbOverrides.port.value != "4001" {
 		t.Fatalf("positional task with flags was not parsed: %+v", positionalOptions)
 	}
 
@@ -453,8 +453,18 @@ func TestCompareDatabaseCLIOverrideValidation(t *testing.T) {
 		t.Fatalf("unexpected removed --db-name behavior: %v", err)
 	}
 
-	if err := run([]string{"--task", "insert", "--address", "192.0.2.10"}); err == nil || !strings.Contains(err.Error(), "only valid") {
-		t.Fatalf("unexpected non-compare override error: %v", err)
+	insertOptions, err := parseCommandLineOptions([]string{
+		"--task", "insert",
+		"--address", "192.0.2.10",
+		"--dbName", "tpcds10",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	insertConfig := dbConfig{address: "hard-coded-address", dbName: "hard-coded-db"}
+	applyDBCLIOverrides(&insertConfig, insertOptions.dbOverrides)
+	if insertConfig.address != "192.0.2.10" || insertConfig.dbName != "tpcds10" {
+		t.Fatalf("insert CLI overrides were not applied: %+v", insertConfig)
 	}
 }
 

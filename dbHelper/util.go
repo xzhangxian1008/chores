@@ -8,12 +8,32 @@ import (
 	"time"
 )
 
+const defaultAddress = "10.2.12.124"
+const defaultPort = "8001"
+const defaultDBName = "test"
+const defaultUser = "root"
+
 type dbConfig struct {
 	address string
 	port    string
 	user    string
 	dbName  string
 	params  []string
+}
+
+func applyDBCLIOverrides(config *dbConfig, overrides dbCLIOverrides) {
+	if overrides.address.set {
+		config.address = overrides.address.value
+	}
+	if overrides.port.set {
+		config.port = overrides.port.value
+	}
+	if overrides.user.set {
+		config.user = overrides.user.value
+	}
+	if overrides.dbName.set {
+		config.dbName = overrides.dbName.value
+	}
 }
 
 func buildDSN(config dbConfig) string {
