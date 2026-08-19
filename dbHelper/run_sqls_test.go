@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"sync"
@@ -18,18 +20,18 @@ import (
 
 func TestRunSQLWorkloadHonorsPerStatementLimitAndPrintsRows(t *testing.T) {
 	setRunSQLConfigForTest(t, 5, 0, 10)
-	statements := []string{
-		"select 1",
-		"select 1 union all select 2",
-		"select 1 union all select 2 union all select 3",
+	cases := []runSQLCase{
+		{query: "select 1"},
+		{query: "select 1 union all select 2"},
+		{query: "select 1 union all select 2 union all select 3"},
 	}
-	completed := make([]atomic.Int64, len(statements))
+	completed := make([]atomic.Int64, len(cases))
 	var runErr error
 	output := captureStdout(t, func() {
 		runErr = runSQLWorkload(
 			context.Background(),
-			statements,
-			func(_ context.Context, statementIndex int, _ string) (int64, error) {
+			cases,
+			func(_ context.Context, statementIndex int, _ runSQLCase) (int64, error) {
 				completed[statementIndex].Add(1)
 				return int64(statementIndex + 1), nil
 			},
@@ -38,7 +40,7 @@ func TestRunSQLWorkloadHonorsPerStatementLimitAndPrintsRows(t *testing.T) {
 	if runErr != nil {
 		t.Fatalf("SQL workload failed: %v", runErr)
 	}
-	for i := range statements {
+	for i := range cases {
 		if got := completed[i].Load(); got != 10 {
 			t.Fatalf("SQL %d completed %d runs, want 10", i+1, got)
 		}
@@ -58,21 +60,22 @@ func TestRunSQLWorkloadHonorsPerStatementLimitAndPrintsRows(t *testing.T) {
 
 func TestRunSQLWorkloadContinuesAfterErrorsAndTruncatesThem(t *testing.T) {
 	setRunSQLConfigForTest(t, 1, 0, 3)
+	runSQLIgnoreErrors = true
 	longError := errors.New(strings.Repeat("错误", 80))
 	var attempts atomic.Int64
 	var runErr error
 	output := captureStdout(t, func() {
 		runErr = runSQLWorkload(
 			context.Background(),
-			[]string{"select broken"},
-			func(context.Context, int, string) (int64, error) {
+			[]runSQLCase{{query: "select broken"}},
+			func(context.Context, int, runSQLCase) (int64, error) {
 				attempts.Add(1)
 				return 7, longError
 			},
 		)
 	})
-	if runErr == nil || !strings.Contains(runErr.Error(), "3 failed execution(s)") {
-		t.Fatalf("unexpected workload error: %v", runErr)
+	if runErr != nil {
+		t.Fatalf("ignored SQL errors should not fail the workload: %v", runErr)
 	}
 	if got := attempts.Load(); got != 3 {
 		t.Fatalf("attempt count = %d, want 3; workload stopped too early", got)
@@ -96,6 +99,49 @@ func TestRunSQLWorkloadContinuesAfterErrorsAndTruncatesThem(t *testing.T) {
 	if failureLines != 3 {
 		t.Fatalf("failure log count = %d, want 3:\n%s", failureLines, output)
 	}
+	if !strings.Contains(output, "finished with 3 ignored error(s)") {
+		t.Fatalf("ignored-error summary is missing:\n%s", output)
+	}
+}
+
+func TestRunSQLWorkloadStopsSchedulingAndWaitsForInFlightSQLs(t *testing.T) {
+	setRunSQLConfigForTest(t, 4, 0, 100)
+	runSQLIgnoreErrors = false
+	rootErr := errors.New("root SQL failure")
+	var attempts atomic.Int64
+	allWorkersStarted := make(chan struct{})
+	var closeStarted sync.Once
+	var runErr error
+	output := captureStdout(t, func() {
+		runErr = runSQLWorkload(
+			context.Background(),
+			[]runSQLCase{{query: "select broken"}},
+			func(_ context.Context, _ int, _ runSQLCase) (int64, error) {
+				attemptNumber := attempts.Add(1)
+				if attemptNumber == 4 {
+					closeStarted.Do(func() { close(allWorkersStarted) })
+				}
+				<-allWorkersStarted
+				if attemptNumber == 1 {
+					return 0, rootErr
+				}
+				time.Sleep(20 * time.Millisecond)
+				return 1, nil
+			},
+		)
+	})
+	if runErr == nil || !strings.Contains(runErr.Error(), rootErr.Error()) {
+		t.Fatalf("unexpected workload error: %v", runErr)
+	}
+	if got := attempts.Load(); got != 4 {
+		t.Fatalf("scheduled executions = %d, want the four already in flight", got)
+	}
+	if !strings.Contains(output, "Failed: random SQL workload") || !strings.Contains(output, rootErr.Error()) {
+		t.Fatalf("final root-error log is missing:\n%s", output)
+	}
+	if successCount := strings.Count(output, "Success SQL"); successCount != 3 {
+		t.Fatalf("in-flight SQLs did not finish naturally: successful=%d\n%s", successCount, output)
+	}
 }
 
 func TestRunSQLWorkloadHonorsDurationLimit(t *testing.T) {
@@ -105,8 +151,8 @@ func TestRunSQLWorkloadHonorsDurationLimit(t *testing.T) {
 	startTime := time.Now()
 	err := runSQLWorkload(
 		context.Background(),
-		[]string{"select sleep"},
-		func(ctx context.Context, _ int, _ string) (int64, error) {
+		[]runSQLCase{{query: "select sleep"}},
+		func(ctx context.Context, _ int, _ runSQLCase) (int64, error) {
 			attempts.Add(1)
 			select {
 			case <-time.After(10 * time.Millisecond):
@@ -140,8 +186,10 @@ func TestExecuteRunSQLUsesOneSessionAndCountsRows(t *testing.T) {
 	rowCount, err := executeRunSQL(
 		context.Background(),
 		db,
-		[]string{"use test", "set variable = 1"},
-		"select value from t",
+		runSQLCase{
+			setupSQLs: []string{"use test", "set variable = 1"},
+			query:     "select value from t",
+		},
 	)
 	if err != nil {
 		t.Fatalf("executeRunSQL failed: %v", err)
@@ -185,7 +233,7 @@ func TestTruncateRunSQLErrorUsesCharacterLimit(t *testing.T) {
 
 func TestValidateRunSQLConfig(t *testing.T) {
 	setRunSQLConfigForTest(t, 1, 0, 0)
-	if err := validateRunSQLConfig([]string{"select 1"}); err == nil || !strings.Contains(err.Error(), "requires a duration") {
+	if err := validateRunSQLConfig([]runSQLCase{{query: "select 1"}}); err == nil || !strings.Contains(err.Error(), "requires a duration") {
 		t.Fatalf("unexpected missing-limit error: %v", err)
 	}
 
@@ -193,8 +241,53 @@ func TestValidateRunSQLConfig(t *testing.T) {
 	if err := validateRunSQLConfig(nil); err == nil || !strings.Contains(err.Error(), "at least one") {
 		t.Fatalf("unexpected empty-list error: %v", err)
 	}
-	if err := validateRunSQLConfig([]string{"select 1", "   "}); err == nil || !strings.Contains(err.Error(), "[1] cannot be empty") {
+	if err := validateRunSQLConfig([]runSQLCase{{query: "select 1"}, {query: "   "}}); err == nil || !strings.Contains(err.Error(), "[1].query cannot be empty") {
 		t.Fatalf("unexpected empty-SQL error: %v", err)
+	}
+}
+
+func TestLoadRunSQLCasesFromYAML(t *testing.T) {
+	fileName := filepath.Join(t.TempDir(), "runSqlsCases.yaml")
+	content := `
+- setupSQLs:
+    - use db_one
+    - set mode=one
+  query: select one
+- setupSQLs:
+    - use db_two
+  query: select two
+`
+	if err := os.WriteFile(fileName, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	cases, err := loadRunSQLCasesFromYAML(fileName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []runSQLCase{
+		{setupSQLs: []string{"use db_one", "set mode=one"}, query: "select one"},
+		{setupSQLs: []string{"use db_two"}, query: "select two"},
+	}
+	if !reflect.DeepEqual(cases, want) {
+		t.Fatalf("unexpected run-sqls YAML cases:\n got: %#v\nwant: %#v", cases, want)
+	}
+}
+
+func TestLoadRunSQLCasesFromYAMLRejectsName(t *testing.T) {
+	fileName := filepath.Join(t.TempDir(), "runSqlsCases.yaml")
+	content := `
+- name: unsupported
+  setupSQLs: []
+  query: select 1
+`
+	if err := os.WriteFile(fileName, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := loadRunSQLCasesFromYAML(fileName)
+	if err == nil || !strings.Contains(err.Error(), "field name not found") {
+		t.Fatalf("unexpected name-field error: %v", err)
 	}
 }
 
@@ -215,13 +308,16 @@ func setRunSQLConfigForTest(t *testing.T, workers int, duration time.Duration, r
 	originalWorkers := runSQLConcurrentWorkerCount
 	originalDuration := runSQLRunDuration
 	originalRunsPerStatement := runSQLRunsPerStatement
+	originalIgnoreErrors := runSQLIgnoreErrors
 	runSQLConcurrentWorkerCount = workers
 	runSQLRunDuration = duration
 	runSQLRunsPerStatement = runsPerStatement
+	runSQLIgnoreErrors = false
 	t.Cleanup(func() {
 		runSQLConcurrentWorkerCount = originalWorkers
 		runSQLRunDuration = originalDuration
 		runSQLRunsPerStatement = originalRunsPerStatement
+		runSQLIgnoreErrors = originalIgnoreErrors
 	})
 }
 

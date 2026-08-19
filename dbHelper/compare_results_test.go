@@ -82,6 +82,35 @@ func TestCompareResultRowsReportsLengthAndFirstMismatch(t *testing.T) {
 	}
 }
 
+func TestPrepareCompareResultRowsUsesSortConfig(t *testing.T) {
+	originalSort := compareResultSortRows
+	t.Cleanup(func() {
+		compareResultSortRows = originalSort
+	})
+
+	rows := []compareRow{
+		{{value: "z"}},
+		{{value: "a"}},
+	}
+	compareResultSortRows = false
+	if got := prepareCompareResultRows(rows); !reflect.DeepEqual(got, rows) {
+		t.Fatalf("unsorted output rows = %#v, want %#v", got, rows)
+	}
+
+	compareResultSortRows = true
+	want := []compareRow{
+		{{value: "a"}},
+		{{value: "z"}},
+	}
+	got := prepareCompareResultRows(rows)
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("sorted output rows = %#v, want %#v", got, want)
+	}
+	if rows[0][0].value != "z" {
+		t.Fatalf("sorting changed original rows: %#v", rows)
+	}
+}
+
 func TestCompareResultRowsUsesUnicodeCaseFolding(t *testing.T) {
 	originalCaseSensitive := compareResultCaseSensitive
 	compareResultCaseSensitive = false

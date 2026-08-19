@@ -118,13 +118,13 @@
       - set tidb_enforce_mpp=1
       - set tidb_opt_enable_mpp_shared_cte_execution=on
       - set tidb_max_bytes_before_tiflash_cte_spill=200000000000000
-    query: with cte1 as (select o_orderkey + 1 as col0, o_custkey as col1 from orders), cte2 as (select col0 + 1 as col0, col0 + 2 as col1 from cte1 where col0 < 5000000 union all select col0 + col1 as col0, col1 + 1 as col1 from cte1 where col1 < 1000000) select * from cte2 t1 join cte2 t2 on t1.col0 = t2.col1
+    query: with cte1 as (select o_orderkey + 1 as col0, o_custkey as col1 from test.orders), cte2 as (select col0 + 1 as col0, col0 + 2 as col1 from cte1 where col0 < 5000000 union all select col0 + col1 as col0, col1 + 1 as col1 from cte1 where col1 < 1000000) select * from cte2 t1 join cte2 t2 on t1.col0 = t2.col1
   actual:
     setupSQLs:
       - set tidb_enforce_mpp=1
       - set tidb_opt_enable_mpp_shared_cte_execution=on
       - set tidb_max_bytes_before_tiflash_cte_spill=20000000
-    query: with cte1 as (select o_orderkey + 1 as col0, o_custkey as col1 from orders), cte2 as (select col0 + 1 as col0, col0 + 2 as col1 from cte1 where col0 < 5000000 union all select col0 + col1 as col0, col1 + 1 as col1 from cte1 where col1 < 1000000) select * from cte2 t1 join cte2 t2 on t1.col0 = t2.col1
+    query: with cte1 as (select o_orderkey + 1 as col0, o_custkey as col1 from test.orders), cte2 as (select col0 + 1 as col0, col0 + 2 as col1 from cte1 where col0 < 5000000 union all select col0 + col1 as col0, col1 + 1 as col1 from cte1 where col1 < 1000000) select * from cte2 t1 join cte2 t2 on t1.col0 = t2.col1
 
 - name: tpch8
   expected:

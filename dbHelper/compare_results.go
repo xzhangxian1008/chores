@@ -34,15 +34,15 @@ var (
 	// compareResultRunConcurrently controls whether multiple SQL pairs are checked
 	// concurrently. It has no effect in file mode, because file mode always compares
 	// exactly the two files configured below.
-	compareResultRunConcurrently = false
+	compareResultRunConcurrently = true
 
 	// The following three variables are used only when
 	// compareResultRunConcurrently is true. Workers repeatedly choose a random
 	// pair from compareResultSQLPairs instead of checking every pair just once.
-	compareResultConcurrentWorkerCount = 4
+	compareResultConcurrentWorkerCount = 5
 
 	// A zero duration disables the time limit.
-	compareResultConcurrentRunDuration = 1 * time.Minute
+	compareResultConcurrentRunDuration = 10 * time.Minute
 
 	// Zero disables the per-pair limit. When this value is positive, every pair
 	// can be scheduled at most this many times. If both limits are enabled, new
@@ -391,7 +391,6 @@ func compareSQLPairsSerially(ctx context.Context, db *sql.DB, pairs []compareSQL
 		if err := compareOneSQLPairWithLabel(ctx, db, pair, label); err != nil {
 			return fmt.Errorf("%s: %w", label, err)
 		}
-		writeCompareLog("[%s] Success", label)
 	}
 	return nil
 }
@@ -660,10 +659,10 @@ func compareOneSQLPairWithLabel(ctx context.Context, db *sql.DB, pair compareSQL
 		label,
 		comparisonStart.Format(time.RFC3339Nano),
 	)
-	resultErr = compareResultRows(expected, actual)
+	expectedForComparison, actualForComparison, resultErr := comparePreparedResultRows(expected, actual)
 	timings.comparisonDuration = time.Since(comparisonStart)
 	if resultErr != nil {
-		if writeErr := writeCompareFailureFiles(".", pair, expected, actual); writeErr != nil {
+		if writeErr := writeCompareFailureFiles(".", pair, expectedForComparison, actualForComparison); writeErr != nil {
 			resultErr = errors.Join(resultErr, fmt.Errorf("write comparison failure files: %w", writeErr))
 		}
 	} else {
@@ -851,18 +850,25 @@ func readResultFile(fileName string) ([]compareRow, error) {
 }
 
 func compareResultRows(expected, actual []compareRow) error {
+	_, _, err := comparePreparedResultRows(expected, actual)
+	return err
+}
+
+func comparePreparedResultRows(expected, actual []compareRow) ([]compareRow, []compareRow, error) {
+	var rowCountErr error
 	if len(expected) != len(actual) {
-		return fmt.Errorf("length not equal, %d vs %d", len(expected), len(actual))
+		rowCountErr = fmt.Errorf("length not equal, %d vs %d", len(expected), len(actual))
 	}
 
-	if compareResultSortRows {
-		expected = sortedResultRows(expected)
-		actual = sortedResultRows(actual)
+	expected = prepareCompareResultRows(expected)
+	actual = prepareCompareResultRows(actual)
+	if rowCountErr != nil {
+		return expected, actual, rowCountErr
 	}
 
 	for i := range expected {
 		if !compareRowsEqual(expected[i], actual[i]) {
-			return fmt.Errorf(
+			return expected, actual, fmt.Errorf(
 				"Incorrect answer: row %d, <%s> vs <%s>",
 				i,
 				formatCompareRow(expected[i]),
@@ -870,7 +876,14 @@ func compareResultRows(expected, actual []compareRow) error {
 			)
 		}
 	}
-	return nil
+	return expected, actual, nil
+}
+
+func prepareCompareResultRows(rows []compareRow) []compareRow {
+	if !compareResultSortRows {
+		return rows
+	}
+	return sortedResultRows(rows)
 }
 
 func sortedResultRows(rows []compareRow) []compareRow {
