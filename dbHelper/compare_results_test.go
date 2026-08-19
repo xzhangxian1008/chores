@@ -97,6 +97,164 @@ func TestCompareResultRowsUsesUnicodeCaseFolding(t *testing.T) {
 	}
 }
 
+func TestWriteCompareFailureFiles(t *testing.T) {
+	pair := compareSQLPair{
+		name: "tpch1",
+		expected: compareSQL{
+			setupSQLs: []string{"set expected_mode=1", "set expected_limit=10"},
+			query:     "select expected_value from t",
+		},
+		actual: compareSQL{
+			setupSQLs: []string{"set actual_mode=1"},
+			query:     "select actual_value from t",
+		},
+	}
+	expectedRows := []compareRow{
+		{{value: "expected-1"}, {isNull: true}},
+		{{value: "expected-2"}, {value: "2"}},
+	}
+	actualRows := []compareRow{{{value: "actual-1"}, {value: "1"}}}
+	outputDir := t.TempDir()
+
+	if err := writeCompareFailureFiles(outputDir, pair, expectedRows, actualRows); err != nil {
+		t.Fatal(err)
+	}
+
+	expectedContent, err := os.ReadFile(filepath.Join(outputDir, "tpch1-expected.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	actualContent, err := os.ReadFile(filepath.Join(outputDir, "tpch1-actual.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	wantExpected := "expected-1\tNULL\nexpected-2\t2\n\n===== SETUP SQLS =====\n-- setup SQL 1\nset expected_mode=1\n-- setup SQL 2\nset expected_limit=10\n\n===== SQL =====\nselect expected_value from t\n"
+	if string(expectedContent) != wantExpected {
+		t.Fatalf("unexpected expected failure file:\n%s", expectedContent)
+	}
+	wantActual := "actual-1\t1\n\n===== SETUP SQLS =====\n-- setup SQL 1\nset actual_mode=1\n\n===== SQL =====\nselect actual_value from t\n"
+	if string(actualContent) != wantActual {
+		t.Fatalf("unexpected actual failure file:\n%s", actualContent)
+	}
+}
+
+func TestWriteCompareFailureFilesDoesNotOverwriteExistingFiles(t *testing.T) {
+	outputDir := t.TempDir()
+	existingFiles := map[string]string{
+		"tpch1-expected.txt":    "existing expected zero",
+		"tpch1-expected(1).txt": "existing expected one",
+		"tpch1-actual.txt":      "existing actual zero",
+	}
+	for fileName, content := range existingFiles {
+		if err := os.WriteFile(filepath.Join(outputDir, fileName), []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	pair := compareSQLPair{
+		name:     "tpch1",
+		expected: compareSQL{query: "select expected"},
+		actual:   compareSQL{query: "select actual"},
+	}
+	if err := writeCompareFailureFiles(
+		outputDir,
+		pair,
+		[]compareRow{{{value: "new expected"}}},
+		[]compareRow{{{value: "new actual"}}},
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	for fileName, want := range existingFiles {
+		got, err := os.ReadFile(filepath.Join(outputDir, fileName))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(got) != want {
+			t.Fatalf("existing file %q was overwritten: got %q, want %q", fileName, got, want)
+		}
+	}
+	for _, fileName := range []string{"tpch1-expected(2).txt", "tpch1-actual(1).txt"} {
+		if _, err := os.Stat(filepath.Join(outputDir, fileName)); err != nil {
+			t.Fatalf("new failure file %q was not created: %v", fileName, err)
+		}
+	}
+}
+
+func TestLoadCompareSQLPairsFromYAML(t *testing.T) {
+	fileName := filepath.Join(t.TempDir(), "compareCases.yaml")
+	content := `
+- name: tpch1
+  expected:
+    setupSQLs:
+      - set expected_one=1
+      - set expected_two=2
+    query: select expected_one
+  actual:
+    setupSQLs:
+      - set actual_one=1
+    query: select actual_one
+- name: tpch2
+  expected:
+    setupSQLs: []
+    query: select expected_two
+  actual:
+    setupSQLs: []
+    query: select actual_two
+`
+	if err := os.WriteFile(fileName, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	pairs, err := loadCompareSQLPairsFromYAML(fileName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []compareSQLPair{
+		{
+			name: "tpch1",
+			expected: compareSQL{
+				setupSQLs: []string{"set expected_one=1", "set expected_two=2"},
+				query:     "select expected_one",
+			},
+			actual: compareSQL{
+				setupSQLs: []string{"set actual_one=1"},
+				query:     "select actual_one",
+			},
+		},
+		{
+			name:     "tpch2",
+			expected: compareSQL{query: "select expected_two"},
+			actual:   compareSQL{query: "select actual_two"},
+		},
+	}
+	if !reflect.DeepEqual(pairs, want) {
+		t.Fatalf("unexpected YAML compare cases:\n got: %#v\nwant: %#v", pairs, want)
+	}
+}
+
+func TestLoadCompareSQLPairsFromYAMLRejectsUnknownFields(t *testing.T) {
+	fileName := filepath.Join(t.TempDir(), "compareCases.yaml")
+	content := `
+- name: typo-case
+  expected:
+    setupSqls: []
+    query: select 1
+  actual:
+    setupSQLs: []
+    query: select 1
+`
+	if err := os.WriteFile(fileName, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := loadCompareSQLPairsFromYAML(fileName)
+	if err == nil || !strings.Contains(err.Error(), "setupSqls") {
+		t.Fatalf("unexpected unknown-field error: %v", err)
+	}
+}
+
 func TestReadResultFileMatchesPythonReadlinesSemantics(t *testing.T) {
 	fileName := filepath.Join(t.TempDir(), "result.txt")
 	if err := os.WriteFile(fileName, []byte("first\r\nsecond\rthird"), 0o600); err != nil {

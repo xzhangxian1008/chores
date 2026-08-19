@@ -5,8 +5,10 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"io"
 	"math/rand"
 	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -17,6 +19,7 @@ import (
 	"unicode/utf8"
 
 	_ "github.com/go-sql-driver/mysql"
+	"gopkg.in/yaml.v3"
 )
 
 // ---------------------- COMPARE CONFIG ----------------------
@@ -54,6 +57,10 @@ var (
 
 	compareResultExpectedFile = ""
 	compareResultActualFile   = ""
+
+	// Cases loaded from this YAML file are appended to the hard-coded
+	// compareResultSQLPairs before SQL comparison starts.
+	compareResultCasesYAMLFile = "compareCases.yaml"
 
 	// You can override it with parameter in CLI
 	// For example: go run . --task compare-results --addr
@@ -96,315 +103,9 @@ var (
 	// 		query: "",
 	// 	},
 	// },
-	compareResultSQLPairs = []compareSQLPair{
-		// --------------------- TPCH ---------------------
-		// {
-		// 	name: "tpch1",
-		// 	expected: compareSQL{
-		// 		setupSQLs: []string{
-		// 			"set tidb_enforce_mpp=1",
-		// 			"set tidb_opt_enable_mpp_shared_cte_execution=on",
-		// 			"set tidb_max_bytes_before_tiflash_cte_spill=200000000000000",
-		// 		},
-		// 		query: "with cte1 as (select PS_PARTKEY, PS_SUPPKEY % 20000 as col0, length(PS_COMMENT) as col1, PS_COMMENT as col2 from test.partsupp where length(ps_comment) > 190) select t1.PS_PARTKEY, t1.col0, t1.col1, t1.col2 from cte1 t1 join cte1 t2 on t1.col0 = t2.col1",
-		// 	},
-		// 	actual: compareSQL{
-		// 		setupSQLs: []string{
-		// 			"set tidb_enforce_mpp=1",
-		// 			"set tidb_opt_enable_mpp_shared_cte_execution=on",
-		// 			fmt.Sprintf("set tidb_max_bytes_before_tiflash_cte_spill=%d", rand.Intn(20000000)+10),
-		// 		},
-		// 		query: "with cte1 as (select PS_PARTKEY, PS_SUPPKEY % 20000 as col0, length(PS_COMMENT) as col1, PS_COMMENT as col2 from test.partsupp where length(ps_comment) > 190) select t1.PS_PARTKEY, t1.col0, t1.col1, t1.col2 from cte1 t1 join cte1 t2 on t1.col0 = t2.col1",
-		// 	},
-		// },
-		// {
-		// 	name: "tpch2",
-		// 	expected: compareSQL{
-		// 		setupSQLs: []string{
-		// 			"set tidb_enforce_mpp=1",
-		// 			"set tidb_opt_enable_mpp_shared_cte_execution=on",
-		// 			"set tidb_max_bytes_before_tiflash_cte_spill=200000000000000",
-		// 		},
-		// 		query: "with cte1 as (select PS_PARTKEY, substring(PS_COMMENT, 1, 30) as col0, substring(PS_COMMENT, 20, 30) as col1 from test.partsupp) select t1.PS_PARTKEY, t1.col0 from cte1 t1 join cte1 t2 on t1.col0 = t2.col1",
-		// 	},
-		// 	actual: compareSQL{
-		// 		setupSQLs: []string{
-		// 			"set tidb_enforce_mpp=1",
-		// 			"set tidb_opt_enable_mpp_shared_cte_execution=on",
-		// 			fmt.Sprintf("set tidb_max_bytes_before_tiflash_cte_spill=%d", rand.Intn(20000000)+10),
-		// 		},
-		// 		query: "with cte1 as (select PS_PARTKEY, substring(PS_COMMENT, 1, 30) as col0, substring(PS_COMMENT, 20, 30) as col1 from test.partsupp) select t1.PS_PARTKEY, t1.col0 from cte1 t1 join cte1 t2 on t1.col0 = t2.col1",
-		// 	},
-		// },
-		// {
-		// 	name: "tpch3",
-		// 	expected: compareSQL{
-		// 		setupSQLs: []string{
-		// 			"set tidb_enforce_mpp=1",
-		// 			"set tidb_opt_enable_mpp_shared_cte_execution=on",
-		// 			"set tidb_max_bytes_before_tiflash_cte_spill=200000000000000",
-		// 		},
-		// 		query: "with cte1 as (select ps_partkey, ps_suppkey, (ps_supplycost + ps_partkey) * 13 as col0, (ps_supplycost + ps_suppkey) * 13 as col1 from test.partsupp) select t1.ps_partkey, t1.ps_suppkey, t1.col0 from cte1 t1 join cte1 t2 on t1.col0 = t2.col1",
-		// 	},
-		// 	actual: compareSQL{
-		// 		setupSQLs: []string{
-		// 			"set tidb_enforce_mpp=1",
-		// 			"set tidb_opt_enable_mpp_shared_cte_execution=on",
-		// 			fmt.Sprintf("set tidb_max_bytes_before_tiflash_cte_spill=%d", rand.Intn(20000000)+10),
-		// 		},
-		// 		query: "with cte1 as (select ps_partkey, ps_suppkey, (ps_supplycost + ps_partkey) * 13 as col0, (ps_supplycost + ps_suppkey) * 13 as col1 from test.partsupp) select t1.ps_partkey, t1.ps_suppkey, t1.col0 from cte1 t1 join cte1 t2 on t1.col0 = t2.col1",
-		// 	},
-		// },
-		// {
-		// 	name: "tpch4",
-		// 	expected: compareSQL{
-		// 		setupSQLs: []string{
-		// 			"set tidb_enforce_mpp=1",
-		// 			"set tidb_opt_enable_mpp_shared_cte_execution=on",
-		// 			"set tidb_max_bytes_before_tiflash_cte_spill=200000000000000",
-		// 		},
-		// 		query: "with cte1 as (select o_orderkey, date_add(o_orderdate, interval o_orderkey%10000000 hour) as col0, date_add(o_orderdate, interval o_orderkey%20000000 hour) as col1 from test.orders) select t1.o_orderkey, t1.col0 from cte1 t1 join cte1 t2 on t1.col0 = t2.col1",
-		// 	},
-		// 	actual: compareSQL{
-		// 		setupSQLs: []string{
-		// 			"set tidb_enforce_mpp=1",
-		// 			"set tidb_opt_enable_mpp_shared_cte_execution=on",
-		// 			fmt.Sprintf("set tidb_max_bytes_before_tiflash_cte_spill=%d", rand.Intn(20000000)+10),
-		// 		},
-		// 		query: "with cte1 as (select o_orderkey, date_add(o_orderdate, interval o_orderkey%10000000 hour) as col0, date_add(o_orderdate, interval o_orderkey%20000000 hour) as col1 from test.orders) select t1.o_orderkey, t1.col0 from cte1 t1 join cte1 t2 on t1.col0 = t2.col1",
-		// 	},
-		// },
-		// {
-		// 	name: "tpch5",
-		// 	expected: compareSQL{
-		// 		setupSQLs: []string{
-		// 			"set tidb_enforce_mpp=1",
-		// 			"set tidb_opt_enable_mpp_shared_cte_execution=on",
-		// 			"set tidb_max_bytes_before_tiflash_cte_spill=200000000000000",
-		// 		},
-		// 		query: "with cte1 as (select ps_partkey, substring(ps_comment, 1, 20) as col0, substring(ps_comment, 2, 4) as col1 from test.partsupp), cte2 as (select c_custkey, substring(c_comment, 1, 20) as col0, substring(c_address, 1, 4) as col1 from test.customer) select t3.c_custkey, t3.col1, t6.col2 from (select t1.c_custkey, t1.col1 as col1 from cte2 as t1 join cte1 as t2 on t1.col1 = t2.col1) as t3 join (select t4.ps_partkey, t5.c_custkey, t4.col0 as col2 from cte1 as t4 join cte2 as t5 on t4.col0 = t5.col0) as t6 on t3.c_custkey = t6.ps_partkey",
-		// 	},
-		// 	actual: compareSQL{
-		// 		setupSQLs: []string{
-		// 			"set tidb_enforce_mpp=1",
-		// 			"set tidb_opt_enable_mpp_shared_cte_execution=on",
-		// 			fmt.Sprintf("set tidb_max_bytes_before_tiflash_cte_spill=%d", rand.Intn(20000000)+10),
-		// 		},
-		// 		query: "with cte1 as (select ps_partkey, substring(ps_comment, 1, 20) as col0, substring(ps_comment, 2, 4) as col1 from test.partsupp), cte2 as (select c_custkey, substring(c_comment, 1, 20) as col0, substring(c_address, 1, 4) as col1 from test.customer) select t3.c_custkey, t3.col1, t6.col2 from (select t1.c_custkey, t1.col1 as col1 from cte2 as t1 join cte1 as t2 on t1.col1 = t2.col1) as t3 join (select t4.ps_partkey, t5.c_custkey, t4.col0 as col2 from cte1 as t4 join cte2 as t5 on t4.col0 = t5.col0) as t6 on t3.c_custkey = t6.ps_partkey",
-		// 	},
-		// },
-		// {
-		// 	name: "tpch6",
-		// 	expected: compareSQL{
-		// 		setupSQLs: []string{
-		// 			"set tidb_enforce_mpp=1",
-		// 			"set tidb_opt_enable_mpp_shared_cte_execution=on",
-		// 			"set tidb_max_bytes_before_tiflash_cte_spill=200000000000000",
-		// 		},
-		// 		query: "with cte1 as (select ps_partkey, substring(ps_comment, 1, 20) as col0, substring(ps_comment, 2, 4) as col1, substring(ps_comment, 5, 4) as col2 from test.partsupp), cte2 as (select c_custkey, substring(c_comment, 1, 20) as col0, substring(c_address, 1, 4) as col1, substring(c_address, 5, 4) as col2 from test.customer) select t7.col0, t7.col1, t8.c_custkey from (select t3.c_custkey as col0, t3.col1 as col1, t6.col2 as col2 from (select t1.c_custkey, t2.col2 as col1 from cte2 as t1 join cte1 as t2 on t1.col1 = t2.col1) as t3 join (select t4.ps_partkey, t5.c_custkey, t4.col0 as col2 from cte1 as t4 join cte2 as t5 on t4.col0 = t5.col0) as t6 on t3.c_custkey = t6.ps_partkey) as t7 join cte2 as t8 on t7.col1 = t8.col2",
-		// 	},
-		// 	actual: compareSQL{
-		// 		setupSQLs: []string{
-		// 			"set tidb_enforce_mpp=1",
-		// 			"set tidb_opt_enable_mpp_shared_cte_execution=on",
-		// 			fmt.Sprintf("set tidb_max_bytes_before_tiflash_cte_spill=%d", rand.Intn(20000000)+10),
-		// 		},
-		// 		query: "with cte1 as (select ps_partkey, substring(ps_comment, 1, 20) as col0, substring(ps_comment, 2, 4) as col1, substring(ps_comment, 5, 4) as col2 from test.partsupp), cte2 as (select c_custkey, substring(c_comment, 1, 20) as col0, substring(c_address, 1, 4) as col1, substring(c_address, 5, 4) as col2 from test.customer) select t7.col0, t7.col1, t8.c_custkey from (select t3.c_custkey as col0, t3.col1 as col1, t6.col2 as col2 from (select t1.c_custkey, t2.col2 as col1 from cte2 as t1 join cte1 as t2 on t1.col1 = t2.col1) as t3 join (select t4.ps_partkey, t5.c_custkey, t4.col0 as col2 from cte1 as t4 join cte2 as t5 on t4.col0 = t5.col0) as t6 on t3.c_custkey = t6.ps_partkey) as t7 join cte2 as t8 on t7.col1 = t8.col2",
-		// 	},
-		// },
-		// {
-		// 	name: "tpch7",
-		// 	expected: compareSQL{
-		// 		setupSQLs: []string{
-		// 			"set tidb_enforce_mpp=1",
-		// 			"set tidb_opt_enable_mpp_shared_cte_execution=on",
-		// 			"set tidb_max_bytes_before_tiflash_cte_spill=200000000000000",
-		// 		},
-		// 		query: "with cte1 as (select o_orderkey + 1 as col0, o_custkey as col1 from test.orders), cte2 as (select col0 + 1 as col0, col0 + 2 as col1 from cte1 union all select col0 + col1 as col0, col1 + 1 as col1 from cte1) select * from cte2 t1 join cte2 t2 on t1.col0 = t2.col1",
-		// 	},
-		// 	actual: compareSQL{
-		// 		setupSQLs: []string{
-		// 			"set tidb_enforce_mpp=1",
-		// 			"set tidb_opt_enable_mpp_shared_cte_execution=on",
-		// 			fmt.Sprintf("set tidb_max_bytes_before_tiflash_cte_spill=%d", rand.Intn(20000000)+10),
-		// 		},
-		// 		query: "with cte1 as (select o_orderkey + 1 as col0, o_custkey as col1 from test.orders), cte2 as (select col0 + 1 as col0, col0 + 2 as col1 from cte1 union all select col0 + col1 as col0, col1 + 1 as col1 from cte1) select * from cte2 t1 join cte2 t2 on t1.col0 = t2.col1",
-		// 	},
-		// },
-		// --------------------- TPCDS ---------------------
-		{
-			name: "tpcds1",
-			expected: compareSQL{
-				setupSQLs: []string{
-					"set tidb_enforce_mpp=1",
-					"set tidb_opt_enable_mpp_shared_cte_execution=on",
-					"set tidb_max_bytes_before_tiflash_cte_spill=200000000000000",
-				},
-				query: "WITH customer_total_return AS (SELECT sr_customer_sk AS ctr_customer_sk, sr_store_sk AS ctr_store_sk, Sum(sr_return_amt) AS ctr_total_return FROM store_returns, date_dim WHERE sr_returned_date_sk = d_date_sk AND d_year = 2001 GROUP BY sr_customer_sk, sr_store_sk) SELECT c_customer_id FROM customer_total_return ctr1, store, customer WHERE  ctr1.ctr_total_return > (SELECT Avg(ctr_total_return) * 1.2 FROM customer_total_return ctr2 WHERE ctr1.ctr_store_sk = ctr2.ctr_store_sk) AND s_store_sk = ctr1.ctr_store_sk AND s_state = 'TN' AND ctr1.ctr_customer_sk = c_customer_sk ORDER  BY c_customer_id LIMIT 100",
-			},
-			actual: compareSQL{
-				setupSQLs: []string{
-					"set tidb_enforce_mpp=1",
-					"set tidb_opt_enable_mpp_shared_cte_execution=on",
-					fmt.Sprintf("set tidb_max_bytes_before_tiflash_cte_spill=%d", rand.Intn(20000000)+10),
-				},
-				query: "WITH customer_total_return AS (SELECT sr_customer_sk AS ctr_customer_sk, sr_store_sk AS ctr_store_sk, Sum(sr_return_amt) AS ctr_total_return FROM store_returns, date_dim WHERE sr_returned_date_sk = d_date_sk AND d_year = 2001 GROUP BY sr_customer_sk, sr_store_sk) SELECT c_customer_id FROM customer_total_return ctr1, store, customer WHERE  ctr1.ctr_total_return > (SELECT Avg(ctr_total_return) * 1.2 FROM customer_total_return ctr2 WHERE ctr1.ctr_store_sk = ctr2.ctr_store_sk) AND s_store_sk = ctr1.ctr_store_sk AND s_state = 'TN' AND ctr1.ctr_customer_sk = c_customer_sk ORDER  BY c_customer_id LIMIT 100",
-			},
-		},
-		{
-			name: "tpcds2",
-			expected: compareSQL{
-				setupSQLs: []string{
-					"set tidb_enforce_mpp=1",
-					"set tidb_opt_enable_mpp_shared_cte_execution=on",
-					"set tidb_max_bytes_before_tiflash_cte_spill=200000000000000",
-				},
-				query: "with wscs as (select ws_sold_date_sk sold_date_sk ,ws_ext_sales_price sales_price from web_sales union all select cs_sold_date_sk sold_date_sk ,cs_ext_sales_price sales_price from catalog_sales), wswscs as (select d_week_seq, sum(case when (d_day_name='Sunday') then sales_price else null end) sun_sales, sum(case when (d_day_name='Monday') then sales_price else null end) mon_sales, sum(case when (d_day_name='Tuesday') then sales_price else null end) tue_sales, sum(case when (d_day_name='Wednesday') then sales_price else null end) wed_sales, sum(case when (d_day_name='Thursday') then sales_price else null end) thu_sales, sum(case when (d_day_name='Friday') then sales_price else null end) fri_sales, sum(case when (d_day_name='Saturday') then sales_price else null end) sat_sales from wscs ,date_dim where d_date_sk = sold_date_sk group by d_week_seq) select d_week_seq1 ,round(sun_sales1/sun_sales2,2) ,round(mon_sales1/mon_sales2,2) ,round(tue_sales1/tue_sales2,2) ,round(wed_sales1/wed_sales2,2) ,round(thu_sales1/thu_sales2,2) ,round(fri_sales1/fri_sales2,2) ,round(sat_sales1/sat_sales2,2) from (select wswscs.d_week_seq d_week_seq1 ,sun_sales sun_sales1 ,mon_sales mon_sales1 ,tue_sales tue_sales1 ,wed_sales wed_sales1 ,thu_sales thu_sales1 ,fri_sales fri_sales1 ,sat_sales sat_sales1 from wswscs,date_dim where date_dim.d_week_seq = wswscs.d_week_seq and d_year = 2001) y, (select wswscs.d_week_seq d_week_seq2 ,sun_sales sun_sales2 ,mon_sales mon_sales2 ,tue_sales tue_sales2 ,wed_sales wed_sales2 ,thu_sales thu_sales2 ,fri_sales fri_sales2 ,sat_sales sat_sales2 from wswscs ,date_dim where date_dim.d_week_seq = wswscs.d_week_seq and d_year = 2001+1) z where d_week_seq1=d_week_seq2-53 order by d_week_seq1",
-			},
-			actual: compareSQL{
-				setupSQLs: []string{
-					"set tidb_enforce_mpp=1",
-					"set tidb_opt_enable_mpp_shared_cte_execution=on",
-					fmt.Sprintf("set tidb_max_bytes_before_tiflash_cte_spill=%d", rand.Intn(20000000)+10),
-				},
-				query: "with wscs as (select ws_sold_date_sk sold_date_sk ,ws_ext_sales_price sales_price from web_sales union all select cs_sold_date_sk sold_date_sk ,cs_ext_sales_price sales_price from catalog_sales), wswscs as (select d_week_seq, sum(case when (d_day_name='Sunday') then sales_price else null end) sun_sales, sum(case when (d_day_name='Monday') then sales_price else null end) mon_sales, sum(case when (d_day_name='Tuesday') then sales_price else null end) tue_sales, sum(case when (d_day_name='Wednesday') then sales_price else null end) wed_sales, sum(case when (d_day_name='Thursday') then sales_price else null end) thu_sales, sum(case when (d_day_name='Friday') then sales_price else null end) fri_sales, sum(case when (d_day_name='Saturday') then sales_price else null end) sat_sales from wscs ,date_dim where d_date_sk = sold_date_sk group by d_week_seq) select d_week_seq1 ,round(sun_sales1/sun_sales2,2) ,round(mon_sales1/mon_sales2,2) ,round(tue_sales1/tue_sales2,2) ,round(wed_sales1/wed_sales2,2) ,round(thu_sales1/thu_sales2,2) ,round(fri_sales1/fri_sales2,2) ,round(sat_sales1/sat_sales2,2) from (select wswscs.d_week_seq d_week_seq1 ,sun_sales sun_sales1 ,mon_sales mon_sales1 ,tue_sales tue_sales1 ,wed_sales wed_sales1 ,thu_sales thu_sales1 ,fri_sales fri_sales1 ,sat_sales sat_sales1 from wswscs,date_dim where date_dim.d_week_seq = wswscs.d_week_seq and d_year = 2001) y, (select wswscs.d_week_seq d_week_seq2 ,sun_sales sun_sales2 ,mon_sales mon_sales2 ,tue_sales tue_sales2 ,wed_sales wed_sales2 ,thu_sales thu_sales2 ,fri_sales fri_sales2 ,sat_sales sat_sales2 from wswscs ,date_dim where date_dim.d_week_seq = wswscs.d_week_seq and d_year = 2001+1) z where d_week_seq1=d_week_seq2-53 order by d_week_seq1",
-			},
-		},
-		{
-			name: "tpcds3",
-			expected: compareSQL{
-				setupSQLs: []string{
-					"set tidb_enforce_mpp=1",
-					"set tidb_opt_enable_mpp_shared_cte_execution=on",
-					"set tidb_max_bytes_before_tiflash_cte_spill=200000000000000",
-				},
-				query: "WITH year_total AS (SELECT c_customer_id customer_id, c_first_name customer_first_name, c_last_name customer_last_name, c_preferred_cust_flag customer_preferred_cust_flag , c_birth_country customer_birth_country, c_login customer_login, c_email_address customer_email_address, d_year dyear, Sum(( ( ss_ext_list_price - ss_ext_wholesale_cost - ss_ext_discount_amt ) + ss_ext_sales_price ) / 2) year_total FROM customer, store_sales, date_dim WHERE c_customer_sk = ss_customer_sk AND ss_sold_date_sk = d_date_sk GROUP BY c_customer_id, c_first_name, c_last_name, c_preferred_cust_flag, c_birth_country, c_login, c_email_address, d_year UNION ALL SELECT c_customer_id customer_id, c_first_name customer_first_name, c_last_name customer_last_name, c_preferred_cust_flag customer_preferred_cust_flag, c_birth_country customer_birth_country , c_login customer_login, c_email_address customer_email_address , d_year dyear , Sum(( ( ( cs_ext_list_price - cs_ext_wholesale_cost - cs_ext_discount_amt ) + cs_ext_sales_price ) / 2 )) year_total FROM customer, catalog_sales, date_dim WHERE c_customer_sk = cs_bill_customer_sk AND cs_sold_date_sk = d_date_sk GROUP BY c_customer_id, c_first_name, c_last_name, c_preferred_cust_flag, c_birth_country, c_login, c_email_address, d_year UNION ALL SELECT c_customer_id customer_id, c_first_name customer_first_name, c_last_name customer_last_name, c_preferred_cust_flag customer_preferred_cust_flag, c_birth_country customer_birth_country , c_login customer_login, c_email_address customer_email_address , d_year dyear , Sum(( ( ( ws_ext_list_price - ws_ext_wholesale_cost - ws_ext_discount_amt ) + ws_ext_sales_price ) / 2 )) year_total FROM customer, web_sales, date_dim WHERE c_customer_sk = ws_bill_customer_sk AND ws_sold_date_sk = d_date_sk GROUP BY c_customer_id, c_first_name, c_last_name, c_preferred_cust_flag, c_birth_country, c_login, c_email_address, d_year) SELECT t_s_secyear.customer_id, t_s_secyear.customer_first_name, t_s_secyear.customer_last_name, t_s_secyear.customer_preferred_cust_flag FROM year_total t_s_firstyear, year_total t_s_secyear, year_total t_c_firstyear, year_total t_c_secyear, year_total t_w_firstyear, year_total t_w_secyear WHERE t_s_secyear.customer_id = t_s_firstyear.customer_id AND t_s_firstyear.customer_id = t_c_secyear.customer_id AND t_s_firstyear.customer_id = t_c_firstyear.customer_id AND t_s_firstyear.customer_id = t_w_firstyear.customer_id AND t_s_firstyear.customer_id = t_w_secyear.customer_id AND t_s_firstyear.dyear = 2001 AND t_s_secyear.dyear = 2001 + 1 AND t_c_firstyear.dyear = 2001 AND t_c_secyear.dyear = 2001 + 1 AND t_w_firstyear.dyear = 2001 AND t_w_secyear.dyear = 2001 + 1 AND t_s_firstyear.year_total > 0 AND t_c_firstyear.year_total > 0 AND t_w_firstyear.year_total > 0 AND CASE WHEN t_c_firstyear.year_total > 0 THEN t_c_secyear.year_total / t_c_firstyear.year_total ELSE NULL END > CASE WHEN t_s_firstyear.year_total > 0 THEN t_s_secyear.year_total / t_s_firstyear.year_total ELSE NULL END AND CASE WHEN t_c_firstyear.year_total > 0 THEN t_c_secyear.year_total / t_c_firstyear.year_total ELSE NULL END > CASE WHEN t_w_firstyear.year_total > 0 THEN t_w_secyear.year_total / t_w_firstyear.year_total ELSE NULL END ORDER BY t_s_secyear.customer_id, t_s_secyear.customer_first_name, t_s_secyear.customer_last_name, t_s_secyear.customer_preferred_cust_flag LIMIT 100",
-			},
-			actual: compareSQL{
-				setupSQLs: []string{
-					"set tidb_enforce_mpp=1",
-					"set tidb_opt_enable_mpp_shared_cte_execution=on",
-					fmt.Sprintf("set tidb_max_bytes_before_tiflash_cte_spill=%d", rand.Intn(20000000)+10),
-				},
-				query: "WITH year_total AS (SELECT c_customer_id customer_id, c_first_name customer_first_name, c_last_name customer_last_name, c_preferred_cust_flag customer_preferred_cust_flag , c_birth_country customer_birth_country, c_login customer_login, c_email_address customer_email_address, d_year dyear, Sum(( ( ss_ext_list_price - ss_ext_wholesale_cost - ss_ext_discount_amt ) + ss_ext_sales_price ) / 2) year_total FROM customer, store_sales, date_dim WHERE c_customer_sk = ss_customer_sk AND ss_sold_date_sk = d_date_sk GROUP BY c_customer_id, c_first_name, c_last_name, c_preferred_cust_flag, c_birth_country, c_login, c_email_address, d_year UNION ALL SELECT c_customer_id customer_id, c_first_name customer_first_name, c_last_name customer_last_name, c_preferred_cust_flag customer_preferred_cust_flag, c_birth_country customer_birth_country , c_login customer_login, c_email_address customer_email_address , d_year dyear , Sum(( ( ( cs_ext_list_price - cs_ext_wholesale_cost - cs_ext_discount_amt ) + cs_ext_sales_price ) / 2 )) year_total FROM customer, catalog_sales, date_dim WHERE c_customer_sk = cs_bill_customer_sk AND cs_sold_date_sk = d_date_sk GROUP BY c_customer_id, c_first_name, c_last_name, c_preferred_cust_flag, c_birth_country, c_login, c_email_address, d_year UNION ALL SELECT c_customer_id customer_id, c_first_name customer_first_name, c_last_name customer_last_name, c_preferred_cust_flag customer_preferred_cust_flag, c_birth_country customer_birth_country , c_login customer_login, c_email_address customer_email_address , d_year dyear , Sum(( ( ( ws_ext_list_price - ws_ext_wholesale_cost - ws_ext_discount_amt ) + ws_ext_sales_price ) / 2 )) year_total FROM customer, web_sales, date_dim WHERE c_customer_sk = ws_bill_customer_sk AND ws_sold_date_sk = d_date_sk GROUP BY c_customer_id, c_first_name, c_last_name, c_preferred_cust_flag, c_birth_country, c_login, c_email_address, d_year) SELECT t_s_secyear.customer_id, t_s_secyear.customer_first_name, t_s_secyear.customer_last_name, t_s_secyear.customer_preferred_cust_flag FROM year_total t_s_firstyear, year_total t_s_secyear, year_total t_c_firstyear, year_total t_c_secyear, year_total t_w_firstyear, year_total t_w_secyear WHERE t_s_secyear.customer_id = t_s_firstyear.customer_id AND t_s_firstyear.customer_id = t_c_secyear.customer_id AND t_s_firstyear.customer_id = t_c_firstyear.customer_id AND t_s_firstyear.customer_id = t_w_firstyear.customer_id AND t_s_firstyear.customer_id = t_w_secyear.customer_id AND t_s_firstyear.dyear = 2001 AND t_s_secyear.dyear = 2001 + 1 AND t_c_firstyear.dyear = 2001 AND t_c_secyear.dyear = 2001 + 1 AND t_w_firstyear.dyear = 2001 AND t_w_secyear.dyear = 2001 + 1 AND t_s_firstyear.year_total > 0 AND t_c_firstyear.year_total > 0 AND t_w_firstyear.year_total > 0 AND CASE WHEN t_c_firstyear.year_total > 0 THEN t_c_secyear.year_total / t_c_firstyear.year_total ELSE NULL END > CASE WHEN t_s_firstyear.year_total > 0 THEN t_s_secyear.year_total / t_s_firstyear.year_total ELSE NULL END AND CASE WHEN t_c_firstyear.year_total > 0 THEN t_c_secyear.year_total / t_c_firstyear.year_total ELSE NULL END > CASE WHEN t_w_firstyear.year_total > 0 THEN t_w_secyear.year_total / t_w_firstyear.year_total ELSE NULL END ORDER BY t_s_secyear.customer_id, t_s_secyear.customer_first_name, t_s_secyear.customer_last_name, t_s_secyear.customer_preferred_cust_flag LIMIT 100",
-			},
-		},
-		{
-			name: "tpcds4",
-			expected: compareSQL{
-				setupSQLs: []string{
-					"set tidb_enforce_mpp=1",
-					"set tidb_opt_enable_mpp_shared_cte_execution=on",
-					"set tidb_max_bytes_before_tiflash_cte_spill=200000000000000",
-				},
-				query: "WITH year_total AS (SELECT c_customer_id customer_id, c_first_name customer_first_name , c_last_name customer_last_name, c_preferred_cust_flag customer_preferred_cust_flag , c_birth_country customer_birth_country, c_login customer_login, c_email_address customer_email_address, d_year dyear, Sum(ss_ext_list_price - ss_ext_discount_amt) year_total FROM customer, store_sales, date_dim WHERE c_customer_sk = ss_customer_sk AND ss_sold_date_sk = d_date_sk GROUP BY c_customer_id, c_first_name, c_last_name, c_preferred_cust_flag, c_birth_country, c_login, c_email_address, d_year UNION ALL SELECT c_customer_id customer_id, c_first_name customer_first_name , c_last_name customer_last_name, c_preferred_cust_flag customer_preferred_cust_flag , c_birth_country customer_birth_country, c_login customer_login, c_email_address customer_email_address, d_year dyear, Sum(ws_ext_list_price - ws_ext_discount_amt) year_total FROM customer, web_sales, date_dim WHERE c_customer_sk = ws_bill_customer_sk AND ws_sold_date_sk = d_date_sk GROUP BY c_customer_id, c_first_name, c_last_name, c_preferred_cust_flag, c_birth_country, c_login, c_email_address, d_year) SELECT t_s_secyear.customer_id, t_s_secyear.customer_first_name, t_s_secyear.customer_last_name, t_s_secyear.customer_birth_country FROM year_total t_s_firstyear, year_total t_s_secyear, year_total t_w_firstyear, year_total t_w_secyear WHERE t_s_secyear.customer_id = t_s_firstyear.customer_id AND t_s_firstyear.customer_id = t_w_secyear.customer_id AND t_s_firstyear.customer_id = t_w_firstyear.customer_id AND t_s_firstyear.dyear = 2001 AND t_s_secyear.dyear = 2001 + 1 AND t_w_firstyear.dyear = 2001 AND t_w_secyear.dyear = 2001 + 1 AND t_s_firstyear.year_total > 0 AND t_w_firstyear.year_total > 0 AND CASE WHEN t_w_firstyear.year_total > 0 THEN t_w_secyear.year_total / t_w_firstyear.year_total ELSE 0.0 END > CASE WHEN t_s_firstyear.year_total > 0 THEN t_s_secyear.year_total / t_s_firstyear.year_total ELSE 0.0 END ORDER BY t_s_secyear.customer_id, t_s_secyear.customer_first_name, t_s_secyear.customer_last_name, t_s_secyear.customer_birth_country LIMIT 100",
-			},
-			actual: compareSQL{
-				setupSQLs: []string{
-					"set tidb_enforce_mpp=1",
-					"set tidb_opt_enable_mpp_shared_cte_execution=on",
-					fmt.Sprintf("set tidb_max_bytes_before_tiflash_cte_spill=%d", rand.Intn(20000000)+10),
-				},
-				query: "WITH year_total AS (SELECT c_customer_id customer_id, c_first_name customer_first_name , c_last_name customer_last_name, c_preferred_cust_flag customer_preferred_cust_flag , c_birth_country customer_birth_country, c_login customer_login, c_email_address customer_email_address, d_year dyear, Sum(ss_ext_list_price - ss_ext_discount_amt) year_total FROM customer, store_sales, date_dim WHERE c_customer_sk = ss_customer_sk AND ss_sold_date_sk = d_date_sk GROUP BY c_customer_id, c_first_name, c_last_name, c_preferred_cust_flag, c_birth_country, c_login, c_email_address, d_year UNION ALL SELECT c_customer_id customer_id, c_first_name customer_first_name , c_last_name customer_last_name, c_preferred_cust_flag customer_preferred_cust_flag , c_birth_country customer_birth_country, c_login customer_login, c_email_address customer_email_address, d_year dyear, Sum(ws_ext_list_price - ws_ext_discount_amt) year_total FROM customer, web_sales, date_dim WHERE c_customer_sk = ws_bill_customer_sk AND ws_sold_date_sk = d_date_sk GROUP BY c_customer_id, c_first_name, c_last_name, c_preferred_cust_flag, c_birth_country, c_login, c_email_address, d_year) SELECT t_s_secyear.customer_id, t_s_secyear.customer_first_name, t_s_secyear.customer_last_name, t_s_secyear.customer_birth_country FROM year_total t_s_firstyear, year_total t_s_secyear, year_total t_w_firstyear, year_total t_w_secyear WHERE t_s_secyear.customer_id = t_s_firstyear.customer_id AND t_s_firstyear.customer_id = t_w_secyear.customer_id AND t_s_firstyear.customer_id = t_w_firstyear.customer_id AND t_s_firstyear.dyear = 2001 AND t_s_secyear.dyear = 2001 + 1 AND t_w_firstyear.dyear = 2001 AND t_w_secyear.dyear = 2001 + 1 AND t_s_firstyear.year_total > 0 AND t_w_firstyear.year_total > 0 AND CASE WHEN t_w_firstyear.year_total > 0 THEN t_w_secyear.year_total / t_w_firstyear.year_total ELSE 0.0 END > CASE WHEN t_s_firstyear.year_total > 0 THEN t_s_secyear.year_total / t_s_firstyear.year_total ELSE 0.0 END ORDER BY t_s_secyear.customer_id, t_s_secyear.customer_first_name, t_s_secyear.customer_last_name, t_s_secyear.customer_birth_country LIMIT 100",
-			},
-		},
-		{
-			name: "tpcds5",
-			expected: compareSQL{
-				setupSQLs: []string{
-					"set tidb_enforce_mpp=1",
-					"set tidb_opt_enable_mpp_shared_cte_execution=on",
-					"set tidb_max_bytes_before_tiflash_cte_spill=200000000000000",
-				},
-				query: "WITH ss AS (SELECT ca_county, d_qoy, d_year, Sum(ss_ext_sales_price) AS store_sales FROM store_sales, date_dim, customer_address WHERE ss_sold_date_sk = d_date_sk AND ss_addr_sk = ca_address_sk GROUP BY ca_county, d_qoy, d_year), ws AS (SELECT ca_county, d_qoy, d_year, Sum(ws_ext_sales_price) AS web_sales FROM web_sales, date_dim, customer_address WHERE ws_sold_date_sk = d_date_sk AND ws_bill_addr_sk = ca_address_sk GROUP BY ca_county, d_qoy, d_year) SELECT ss1.ca_county, ss1.d_year, ws2.web_sales / ws1.web_sales web_q1_q2_increase, ss2.store_sales / ss1.store_sales store_q1_q2_increase, ws3.web_sales / ws2.web_sales web_q2_q3_increase, ss3.store_sales / ss2.store_sales store_q2_q3_increase FROM ss ss1, ss ss2, ss ss3, ws ws1, ws ws2, ws ws3 WHERE ss1.d_qoy = 1 AND ss1.d_year = 2001 AND ss1.ca_county = ss2.ca_county AND ss2.d_qoy = 2 AND ss2.d_year = 2001 AND ss2.ca_county = ss3.ca_county AND ss3.d_qoy = 3 AND ss3.d_year = 2001 AND ss1.ca_county = ws1.ca_county AND ws1.d_qoy = 1 AND ws1.d_year = 2001 AND ws1.ca_county = ws2.ca_county AND ws2.d_qoy = 2 AND ws2.d_year = 2001 AND ws1.ca_county = ws3.ca_county AND ws3.d_qoy = 3 AND ws3.d_year = 2001 AND CASE WHEN ws1.web_sales > 0 THEN ws2.web_sales / ws1.web_sales ELSE NULL END > CASE WHEN ss1.store_sales > 0 THEN ss2.store_sales / ss1.store_sales ELSE NULL END AND CASE WHEN ws2.web_sales > 0 THEN ws3.web_sales / ws2.web_sales ELSE NULL END > CASE WHEN ss2.store_sales > 0 THEN ss3.store_sales / ss2.store_sales ELSE NULL END ORDER BY ss1.d_year",
-			},
-			actual: compareSQL{
-				setupSQLs: []string{
-					"set tidb_enforce_mpp=1",
-					"set tidb_opt_enable_mpp_shared_cte_execution=on",
-					fmt.Sprintf("set tidb_max_bytes_before_tiflash_cte_spill=%d", rand.Intn(20000000)+10),
-				},
-				query: "WITH ss AS (SELECT ca_county, d_qoy, d_year, Sum(ss_ext_sales_price) AS store_sales FROM store_sales, date_dim, customer_address WHERE ss_sold_date_sk = d_date_sk AND ss_addr_sk = ca_address_sk GROUP BY ca_county, d_qoy, d_year), ws AS (SELECT ca_county, d_qoy, d_year, Sum(ws_ext_sales_price) AS web_sales FROM web_sales, date_dim, customer_address WHERE ws_sold_date_sk = d_date_sk AND ws_bill_addr_sk = ca_address_sk GROUP BY ca_county, d_qoy, d_year) SELECT ss1.ca_county, ss1.d_year, ws2.web_sales / ws1.web_sales web_q1_q2_increase, ss2.store_sales / ss1.store_sales store_q1_q2_increase, ws3.web_sales / ws2.web_sales web_q2_q3_increase, ss3.store_sales / ss2.store_sales store_q2_q3_increase FROM ss ss1, ss ss2, ss ss3, ws ws1, ws ws2, ws ws3 WHERE ss1.d_qoy = 1 AND ss1.d_year = 2001 AND ss1.ca_county = ss2.ca_county AND ss2.d_qoy = 2 AND ss2.d_year = 2001 AND ss2.ca_county = ss3.ca_county AND ss3.d_qoy = 3 AND ss3.d_year = 2001 AND ss1.ca_county = ws1.ca_county AND ws1.d_qoy = 1 AND ws1.d_year = 2001 AND ws1.ca_county = ws2.ca_county AND ws2.d_qoy = 2 AND ws2.d_year = 2001 AND ws1.ca_county = ws3.ca_county AND ws3.d_qoy = 3 AND ws3.d_year = 2001 AND CASE WHEN ws1.web_sales > 0 THEN ws2.web_sales / ws1.web_sales ELSE NULL END > CASE WHEN ss1.store_sales > 0 THEN ss2.store_sales / ss1.store_sales ELSE NULL END AND CASE WHEN ws2.web_sales > 0 THEN ws3.web_sales / ws2.web_sales ELSE NULL END > CASE WHEN ss2.store_sales > 0 THEN ss3.store_sales / ss2.store_sales ELSE NULL END ORDER BY ss1.d_year",
-			},
-		},
-		{
-			name: "tpcds6",
-			expected: compareSQL{
-				setupSQLs: []string{
-					"set tidb_enforce_mpp=1",
-					"set tidb_opt_enable_mpp_shared_cte_execution=on",
-					"set tidb_max_bytes_before_tiflash_cte_spill=200000000000000",
-				},
-				query: "WITH wss AS (SELECT d_week_seq, ss_store_sk, Sum(CASE WHEN ( d_day_name = 'Sunday' ) THEN ss_sales_price ELSE NULL END) sun_sales, Sum(CASE WHEN ( d_day_name = 'Monday' ) THEN ss_sales_price ELSE NULL END) mon_sales, Sum(CASE WHEN ( d_day_name = 'Tuesday' ) THEN ss_sales_price ELSE NULL END) tue_sales, Sum(CASE WHEN ( d_day_name = 'Wednesday' ) THEN ss_sales_price ELSE NULL END) wed_sales, Sum(CASE WHEN ( d_day_name = 'Thursday' ) THEN ss_sales_price ELSE NULL END) thu_sales, Sum(CASE WHEN ( d_day_name = 'Friday' ) THEN ss_sales_price ELSE NULL END) fri_sales, Sum(CASE WHEN ( d_day_name = 'Saturday' ) THEN ss_sales_price ELSE NULL END) sat_sales FROM store_sales, date_dim WHERE d_date_sk = ss_sold_date_sk GROUP BY d_week_seq, ss_store_sk) SELECT s_store_name1, s_store_id1, d_week_seq1, sun_sales1 / sun_sales2, mon_sales1 / mon_sales2, tue_sales1 / tue_sales2, wed_sales1 / wed_sales2, thu_sales1 / thu_sales2, fri_sales1 / fri_sales2, sat_sales1 / sat_sales2 FROM (SELECT s_store_name s_store_name1, wss.d_week_seq d_week_seq1, s_store_id s_store_id1, sun_sales sun_sales1, mon_sales mon_sales1, tue_sales tue_sales1, wed_sales wed_sales1, thu_sales thu_sales1, fri_sales fri_sales1, sat_sales sat_sales1 FROM wss, store, date_dim d WHERE d.d_week_seq = wss.d_week_seq AND ss_store_sk = s_store_sk AND d_month_seq BETWEEN 1196 AND 1196 + 11) y, (SELECT s_store_name s_store_name2, wss.d_week_seq d_week_seq2, s_store_id s_store_id2, sun_sales sun_sales2, mon_sales mon_sales2, tue_sales tue_sales2, wed_sales wed_sales2, thu_sales thu_sales2, fri_sales fri_sales2, sat_sales sat_sales2 FROM wss, store, date_dim d WHERE d.d_week_seq = wss.d_week_seq AND ss_store_sk = s_store_sk AND d_month_seq BETWEEN 1196 + 12 AND 1196 + 23) x WHERE s_store_id1 = s_store_id2 AND d_week_seq1 = d_week_seq2 - 52 ORDER BY s_store_name1, s_store_id1, d_week_seq1 LIMIT 100",
-			},
-			actual: compareSQL{
-				setupSQLs: []string{
-					"set tidb_enforce_mpp=1",
-					"set tidb_opt_enable_mpp_shared_cte_execution=on",
-					fmt.Sprintf("set tidb_max_bytes_before_tiflash_cte_spill=%d", rand.Intn(20000000)+10),
-				},
-				query: "WITH wss AS (SELECT d_week_seq, ss_store_sk, Sum(CASE WHEN ( d_day_name = 'Sunday' ) THEN ss_sales_price ELSE NULL END) sun_sales, Sum(CASE WHEN ( d_day_name = 'Monday' ) THEN ss_sales_price ELSE NULL END) mon_sales, Sum(CASE WHEN ( d_day_name = 'Tuesday' ) THEN ss_sales_price ELSE NULL END) tue_sales, Sum(CASE WHEN ( d_day_name = 'Wednesday' ) THEN ss_sales_price ELSE NULL END) wed_sales, Sum(CASE WHEN ( d_day_name = 'Thursday' ) THEN ss_sales_price ELSE NULL END) thu_sales, Sum(CASE WHEN ( d_day_name = 'Friday' ) THEN ss_sales_price ELSE NULL END) fri_sales, Sum(CASE WHEN ( d_day_name = 'Saturday' ) THEN ss_sales_price ELSE NULL END) sat_sales FROM store_sales, date_dim WHERE d_date_sk = ss_sold_date_sk GROUP BY d_week_seq, ss_store_sk) SELECT s_store_name1, s_store_id1, d_week_seq1, sun_sales1 / sun_sales2, mon_sales1 / mon_sales2, tue_sales1 / tue_sales2, wed_sales1 / wed_sales2, thu_sales1 / thu_sales2, fri_sales1 / fri_sales2, sat_sales1 / sat_sales2 FROM (SELECT s_store_name s_store_name1, wss.d_week_seq d_week_seq1, s_store_id s_store_id1, sun_sales sun_sales1, mon_sales mon_sales1, tue_sales tue_sales1, wed_sales wed_sales1, thu_sales thu_sales1, fri_sales fri_sales1, sat_sales sat_sales1 FROM wss, store, date_dim d WHERE d.d_week_seq = wss.d_week_seq AND ss_store_sk = s_store_sk AND d_month_seq BETWEEN 1196 AND 1196 + 11) y, (SELECT s_store_name s_store_name2, wss.d_week_seq d_week_seq2, s_store_id s_store_id2, sun_sales sun_sales2, mon_sales mon_sales2, tue_sales tue_sales2, wed_sales wed_sales2, thu_sales thu_sales2, fri_sales fri_sales2, sat_sales sat_sales2 FROM wss, store, date_dim d WHERE d.d_week_seq = wss.d_week_seq AND ss_store_sk = s_store_sk AND d_month_seq BETWEEN 1196 + 12 AND 1196 + 23) x WHERE s_store_id1 = s_store_id2 AND d_week_seq1 = d_week_seq2 - 52 ORDER BY s_store_name1, s_store_id1, d_week_seq1 LIMIT 100",
-			},
-		},
-		{
-			name: "tpcds7",
-			expected: compareSQL{
-				setupSQLs: []string{
-					"set tidb_enforce_mpp=1",
-					"set tidb_opt_enable_mpp_shared_cte_execution=on",
-					"set tidb_max_bytes_before_tiflash_cte_spill=200000000000000",
-				},
-				query: "WITH all_sales AS (SELECT d_year, i_brand_id, i_class_id, i_category_id, i_manufact_id, Sum(sales_cnt) AS sales_cnt, Sum(sales_amt) AS sales_amt FROM (SELECT d_year, i_brand_id, i_class_id, i_category_id, i_manufact_id, cs_quantity - COALESCE(cr_return_quantity, 0) AS sales_cnt, cs_ext_sales_price - COALESCE(cr_return_amount, 0.0) AS sales_amt FROM catalog_sales JOIN item ON i_item_sk = cs_item_sk JOIN date_dim ON d_date_sk = cs_sold_date_sk LEFT JOIN catalog_returns ON ( cs_order_number = cr_order_number AND cs_item_sk = cr_item_sk ) WHERE i_category = 'Men' UNION SELECT d_year, i_brand_id, i_class_id, i_category_id, i_manufact_id, ss_quantity - COALESCE(sr_return_quantity, 0) AS sales_cnt, ss_ext_sales_price - COALESCE(sr_return_amt, 0.0) AS sales_amt FROM store_sales JOIN item ON i_item_sk = ss_item_sk JOIN date_dim ON d_date_sk = ss_sold_date_sk LEFT JOIN store_returns ON ( ss_ticket_number = sr_ticket_number AND ss_item_sk = sr_item_sk ) WHERE i_category = 'Men' UNION SELECT d_year, i_brand_id, i_class_id, i_category_id, i_manufact_id, ws_quantity - COALESCE(wr_return_quantity, 0) AS sales_cnt, ws_ext_sales_price - COALESCE(wr_return_amt, 0.0) AS sales_amt FROM web_sales JOIN item ON i_item_sk = ws_item_sk JOIN date_dim ON d_date_sk = ws_sold_date_sk LEFT JOIN web_returns ON ( ws_order_number = wr_order_number AND ws_item_sk = wr_item_sk ) WHERE i_category = 'Men') sales_detail GROUP BY d_year, i_brand_id, i_class_id, i_category_id, i_manufact_id) SELECT prev_yr.d_year AS prev_year, curr_yr.d_year AS year1, curr_yr.i_brand_id, curr_yr.i_class_id, curr_yr.i_category_id, curr_yr.i_manufact_id, prev_yr.sales_cnt AS prev_yr_cnt, curr_yr.sales_cnt AS curr_yr_cnt, curr_yr.sales_cnt - prev_yr.sales_cnt AS sales_cnt_diff, curr_yr.sales_amt - prev_yr.sales_amt AS sales_amt_diff FROM all_sales curr_yr, all_sales prev_yr WHERE curr_yr.i_brand_id = prev_yr.i_brand_id AND curr_yr.i_class_id = prev_yr.i_class_id AND curr_yr.i_category_id = prev_yr.i_category_id AND curr_yr.i_manufact_id = prev_yr.i_manufact_id AND curr_yr.d_year = 2002 AND prev_yr.d_year = 2002 - 1 AND Cast(curr_yr.sales_cnt AS DECIMAL(17, 2)) / Cast(prev_yr.sales_cnt AS DECIMAL(17, 2)) < 0.9 ORDER BY sales_cnt_diff LIMIT 100",
-			},
-			actual: compareSQL{
-				setupSQLs: []string{
-					"set tidb_enforce_mpp=1",
-					"set tidb_opt_enable_mpp_shared_cte_execution=on",
-					fmt.Sprintf("set tidb_max_bytes_before_tiflash_cte_spill=%d", rand.Intn(20000000)+10),
-				},
-				query: "WITH all_sales AS (SELECT d_year, i_brand_id, i_class_id, i_category_id, i_manufact_id, Sum(sales_cnt) AS sales_cnt, Sum(sales_amt) AS sales_amt FROM (SELECT d_year, i_brand_id, i_class_id, i_category_id, i_manufact_id, cs_quantity - COALESCE(cr_return_quantity, 0) AS sales_cnt, cs_ext_sales_price - COALESCE(cr_return_amount, 0.0) AS sales_amt FROM catalog_sales JOIN item ON i_item_sk = cs_item_sk JOIN date_dim ON d_date_sk = cs_sold_date_sk LEFT JOIN catalog_returns ON ( cs_order_number = cr_order_number AND cs_item_sk = cr_item_sk ) WHERE i_category = 'Men' UNION SELECT d_year, i_brand_id, i_class_id, i_category_id, i_manufact_id, ss_quantity - COALESCE(sr_return_quantity, 0) AS sales_cnt, ss_ext_sales_price - COALESCE(sr_return_amt, 0.0) AS sales_amt FROM store_sales JOIN item ON i_item_sk = ss_item_sk JOIN date_dim ON d_date_sk = ss_sold_date_sk LEFT JOIN store_returns ON ( ss_ticket_number = sr_ticket_number AND ss_item_sk = sr_item_sk ) WHERE i_category = 'Men' UNION SELECT d_year, i_brand_id, i_class_id, i_category_id, i_manufact_id, ws_quantity - COALESCE(wr_return_quantity, 0) AS sales_cnt, ws_ext_sales_price - COALESCE(wr_return_amt, 0.0) AS sales_amt FROM web_sales JOIN item ON i_item_sk = ws_item_sk JOIN date_dim ON d_date_sk = ws_sold_date_sk LEFT JOIN web_returns ON ( ws_order_number = wr_order_number AND ws_item_sk = wr_item_sk ) WHERE i_category = 'Men') sales_detail GROUP BY d_year, i_brand_id, i_class_id, i_category_id, i_manufact_id) SELECT prev_yr.d_year AS prev_year, curr_yr.d_year AS year1, curr_yr.i_brand_id, curr_yr.i_class_id, curr_yr.i_category_id, curr_yr.i_manufact_id, prev_yr.sales_cnt AS prev_yr_cnt, curr_yr.sales_cnt AS curr_yr_cnt, curr_yr.sales_cnt - prev_yr.sales_cnt AS sales_cnt_diff, curr_yr.sales_amt - prev_yr.sales_amt AS sales_amt_diff FROM all_sales curr_yr, all_sales prev_yr WHERE curr_yr.i_brand_id = prev_yr.i_brand_id AND curr_yr.i_class_id = prev_yr.i_class_id AND curr_yr.i_category_id = prev_yr.i_category_id AND curr_yr.i_manufact_id = prev_yr.i_manufact_id AND curr_yr.d_year = 2002 AND prev_yr.d_year = 2002 - 1 AND Cast(curr_yr.sales_cnt AS DECIMAL(17, 2)) / Cast(prev_yr.sales_cnt AS DECIMAL(17, 2)) < 0.9 ORDER BY sales_cnt_diff LIMIT 100",
-			},
-		},
-		{
-			name: "tpcds8",
-			expected: compareSQL{
-				setupSQLs: []string{
-					"set tidb_enforce_mpp=1",
-					"set tidb_opt_enable_mpp_shared_cte_execution=on",
-					"set tidb_max_bytes_before_tiflash_cte_spill=200000000000000",
-				},
-				query: "WITH customer_total_return AS (SELECT cr_returning_customer_sk AS ctr_customer_sk, ca_state AS ctr_state, Sum(cr_return_amt_inc_tax) AS ctr_total_return FROM catalog_returns, date_dim, customer_address WHERE cr_returned_date_sk = d_date_sk AND d_year = 1999 AND cr_returning_addr_sk = ca_address_sk GROUP BY cr_returning_customer_sk, ca_state) SELECT c_customer_id, c_salutation, c_first_name, c_last_name, ca_street_number, ca_street_name, ca_street_type, ca_suite_number, ca_city, ca_county, ca_state, ca_zip, ca_country, ca_gmt_offset, ca_location_type, ctr_total_return FROM customer_total_return ctr1, customer_address, customer WHERE ctr1.ctr_total_return > (SELECT Avg(ctr_total_return) * 1.2 FROM customer_total_return ctr2 WHERE ctr1.ctr_state = ctr2.ctr_state) AND ca_address_sk = c_current_addr_sk AND ca_state = 'TX' AND ctr1.ctr_customer_sk = c_customer_sk ORDER BY c_customer_id, c_salutation, c_first_name, c_last_name, ca_street_number, ca_street_name, ca_street_type, ca_suite_number, ca_city, ca_county, ca_state, ca_zip, ca_country, ca_gmt_offset, ca_location_type, ctr_total_return LIMIT 100; ## Q95 WITH ws_wh AS ( SELECT ws1.ws_order_number, ws1.ws_warehouse_sk wh1, ws2.ws_warehouse_sk wh2 FROM web_sales ws1, web_sales ws2 WHERE ws1.ws_order_number = ws2.ws_order_number AND ws1.ws_warehouse_sk <> ws2.ws_warehouse_sk) SELECT Count(DISTINCT ws_order_number) AS `order count` , Sum(ws_ext_ship_cost) AS `total shipping cost` , Sum(ws_net_profit) AS `total net profit` FROM web_sales ws1 , date_dim , customer_address , web_site WHERE d_date BETWEEN '2000-4-01' AND ( Cast('2000-4-01' AS DATE) + INTERVAL '60' day) AND ws1.ws_ship_date_sk = d_date_sk AND ws1.ws_ship_addr_sk = ca_address_sk AND ca_state = 'IN' AND ws1.ws_web_site_sk = web_site_sk AND web_company_name = 'pri' AND ws1.ws_order_number IN ( SELECT ws_order_number FROM ws_wh) AND ws1.ws_order_number IN ( SELECT wr_order_number FROM web_returns, ws_wh WHERE wr_order_number = ws_wh.ws_order_number) ORDER BY count(DISTINCT ws_order_number) LIMIT 100",
-			},
-			actual: compareSQL{
-				setupSQLs: []string{
-					"set tidb_enforce_mpp=1",
-					"set tidb_opt_enable_mpp_shared_cte_execution=on",
-					fmt.Sprintf("set tidb_max_bytes_before_tiflash_cte_spill=%d", rand.Intn(20000000)+10),
-				},
-				query: "WITH customer_total_return AS (SELECT cr_returning_customer_sk AS ctr_customer_sk, ca_state AS ctr_state, Sum(cr_return_amt_inc_tax) AS ctr_total_return FROM catalog_returns, date_dim, customer_address WHERE cr_returned_date_sk = d_date_sk AND d_year = 1999 AND cr_returning_addr_sk = ca_address_sk GROUP BY cr_returning_customer_sk, ca_state) SELECT c_customer_id, c_salutation, c_first_name, c_last_name, ca_street_number, ca_street_name, ca_street_type, ca_suite_number, ca_city, ca_county, ca_state, ca_zip, ca_country, ca_gmt_offset, ca_location_type, ctr_total_return FROM customer_total_return ctr1, customer_address, customer WHERE ctr1.ctr_total_return > (SELECT Avg(ctr_total_return) * 1.2 FROM customer_total_return ctr2 WHERE ctr1.ctr_state = ctr2.ctr_state) AND ca_address_sk = c_current_addr_sk AND ca_state = 'TX' AND ctr1.ctr_customer_sk = c_customer_sk ORDER BY c_customer_id, c_salutation, c_first_name, c_last_name, ca_street_number, ca_street_name, ca_street_type, ca_suite_number, ca_city, ca_county, ca_state, ca_zip, ca_country, ca_gmt_offset, ca_location_type, ctr_total_return LIMIT 100; ## Q95 WITH ws_wh AS ( SELECT ws1.ws_order_number, ws1.ws_warehouse_sk wh1, ws2.ws_warehouse_sk wh2 FROM web_sales ws1, web_sales ws2 WHERE ws1.ws_order_number = ws2.ws_order_number AND ws1.ws_warehouse_sk <> ws2.ws_warehouse_sk) SELECT Count(DISTINCT ws_order_number) AS `order count` , Sum(ws_ext_ship_cost) AS `total shipping cost` , Sum(ws_net_profit) AS `total net profit` FROM web_sales ws1 , date_dim , customer_address , web_site WHERE d_date BETWEEN '2000-4-01' AND ( Cast('2000-4-01' AS DATE) + INTERVAL '60' day) AND ws1.ws_ship_date_sk = d_date_sk AND ws1.ws_ship_addr_sk = ca_address_sk AND ca_state = 'IN' AND ws1.ws_web_site_sk = web_site_sk AND web_company_name = 'pri' AND ws1.ws_order_number IN ( SELECT ws_order_number FROM ws_wh) AND ws1.ws_order_number IN ( SELECT wr_order_number FROM web_returns, ws_wh WHERE wr_order_number = ws_wh.ws_order_number) ORDER BY count(DISTINCT ws_order_number) LIMIT 100",
-			},
-		},
-		{
-			name: "tpcds9",
-			expected: compareSQL{
-				setupSQLs: []string{
-					"set tidb_enforce_mpp=1",
-					"set tidb_opt_enable_mpp_shared_cte_execution=on",
-					"set tidb_max_bytes_before_tiflash_cte_spill=200000000000000",
-				},
-				query: "WITH ws_wh AS (SELECT ws1.ws_order_number, ws1.ws_warehouse_sk wh1, ws2.ws_warehouse_sk wh2 FROM web_sales ws1, web_sales ws2 WHERE ws1.ws_order_number = ws2.ws_order_number AND ws1.ws_warehouse_sk <> ws2.ws_warehouse_sk) SELECT Count(DISTINCT ws_order_number) AS `order count` , Sum(ws_ext_ship_cost) AS `total shipping cost` , Sum(ws_net_profit) AS `total net profit` FROM web_sales ws1 , date_dim , customer_address , web_site WHERE d_date BETWEEN '2000-4-01' AND ( Cast('2000-4-01' AS DATE) + INTERVAL '60' day) AND ws1.ws_ship_date_sk = d_date_sk AND ws1.ws_ship_addr_sk = ca_address_sk AND ca_state = 'IN' AND ws1.ws_web_site_sk = web_site_sk AND web_company_name = 'pri' AND ws1.ws_order_number IN ( SELECT ws_order_number FROM ws_wh) AND ws1.ws_order_number IN ( SELECT wr_order_number FROM web_returns, ws_wh WHERE wr_order_number = ws_wh.ws_order_number) ORDER BY count(DISTINCT ws_order_number) LIMIT 100",
-			},
-			actual: compareSQL{
-				setupSQLs: []string{
-					"set tidb_enforce_mpp=1",
-					"set tidb_opt_enable_mpp_shared_cte_execution=on",
-					fmt.Sprintf("set tidb_max_bytes_before_tiflash_cte_spill=%d", rand.Intn(20000000)+10),
-				},
-				query: "WITH ws_wh AS (SELECT ws1.ws_order_number, ws1.ws_warehouse_sk wh1, ws2.ws_warehouse_sk wh2 FROM web_sales ws1, web_sales ws2 WHERE ws1.ws_order_number = ws2.ws_order_number AND ws1.ws_warehouse_sk <> ws2.ws_warehouse_sk) SELECT Count(DISTINCT ws_order_number) AS `order count` , Sum(ws_ext_ship_cost) AS `total shipping cost` , Sum(ws_net_profit) AS `total net profit` FROM web_sales ws1 , date_dim , customer_address , web_site WHERE d_date BETWEEN '2000-4-01' AND ( Cast('2000-4-01' AS DATE) + INTERVAL '60' day) AND ws1.ws_ship_date_sk = d_date_sk AND ws1.ws_ship_addr_sk = ca_address_sk AND ca_state = 'IN' AND ws1.ws_web_site_sk = web_site_sk AND web_company_name = 'pri' AND ws1.ws_order_number IN ( SELECT ws_order_number FROM ws_wh) AND ws1.ws_order_number IN ( SELECT wr_order_number FROM web_returns, ws_wh WHERE wr_order_number = ws_wh.ws_order_number) ORDER BY count(DISTINCT ws_order_number) LIMIT 100",
-			},
-		},
-		// --------------------- Customized Dataset ---------------------
-	}
+	//
+	// Moreover, you can config it in the `compareCases.yaml` file.
+	compareResultSQLPairs = []compareSQLPair{}
 )
 
 // ------------------------------------------------------------
@@ -418,6 +119,17 @@ type compareSQLPair struct {
 	name     string
 	expected compareSQL
 	actual   compareSQL
+}
+
+type compareSQLYAML struct {
+	SetupSQLs []string `yaml:"setupSQLs"`
+	Query     string   `yaml:"query"`
+}
+
+type compareSQLPairYAML struct {
+	Name     string         `yaml:"name"`
+	Expected compareSQLYAML `yaml:"expected"`
+	Actual   compareSQLYAML `yaml:"actual"`
 }
 
 type compareCell struct {
@@ -436,7 +148,12 @@ type compareStageTimings struct {
 	comparisonDuration time.Duration
 }
 
-var compareLogMu sync.Mutex
+var (
+	compareLogMu         sync.Mutex
+	compareFailureFileMu sync.Mutex
+	compareCasesYAMLOnce sync.Once
+	compareCasesYAMLErr  error
+)
 
 func writeCompareLog(format string, args ...any) {
 	compareLogMu.Lock()
@@ -473,6 +190,11 @@ func runCompareResults() error {
 }
 
 func compareResultsTask(ctx context.Context) error {
+	if !compareResultReadFromFiles {
+		if err := initializeCompareResultSQLPairsFromYAML(); err != nil {
+			return err
+		}
+	}
 	printCompareResultConfig()
 	if compareResultReadFromFiles {
 		return compareConfiguredFiles()
@@ -497,6 +219,7 @@ func printCompareResultConfig() {
 	fmt.Printf("compareResultDataSource=%s\n", dataSource)
 	fmt.Printf("compareResultExpectedFile=%q\n", compareResultExpectedFile)
 	fmt.Printf("compareResultActualFile=%q\n", compareResultActualFile)
+	fmt.Printf("compareResultCasesYAMLFile=%q\n", compareResultCasesYAMLFile)
 	fmt.Printf("compareResultDBConfig.address=%q\n", compareResultDBConfig.address)
 	fmt.Printf("compareResultDBConfig.port=%q\n", compareResultDBConfig.port)
 	fmt.Printf("compareResultDBConfig.user=%q\n", compareResultDBConfig.user)
@@ -510,6 +233,72 @@ func printCompareResultConfig() {
 	// 	printCompareSQLConfig(pairPrefix+".actual", pair.actual)
 	// }
 	fmt.Println("========== END COMPARE CONFIG ==========")
+}
+
+func initializeCompareResultSQLPairsFromYAML() error {
+	compareCasesYAMLOnce.Do(func() {
+		pairs, err := loadCompareSQLPairsFromYAML(compareResultCasesYAMLFile)
+		if err != nil {
+			compareCasesYAMLErr = fmt.Errorf("initialize compare cases from YAML: %w", err)
+			return
+		}
+		compareResultSQLPairs = append(compareResultSQLPairs, pairs...)
+	})
+	return compareCasesYAMLErr
+}
+
+func loadCompareSQLPairsFromYAML(fileName string) ([]compareSQLPair, error) {
+	if strings.TrimSpace(fileName) == "" {
+		return nil, errors.New("compare cases YAML file name cannot be empty")
+	}
+
+	file, err := os.Open(fileName)
+	if err != nil {
+		return nil, fmt.Errorf("open %q: %w", fileName, err)
+	}
+	defer file.Close()
+
+	decoder := yaml.NewDecoder(file)
+	decoder.KnownFields(true)
+	var configuredPairs []compareSQLPairYAML
+	if err := decoder.Decode(&configuredPairs); err != nil {
+		if errors.Is(err, io.EOF) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("decode %q: %w", fileName, err)
+	}
+	var extraDocument any
+	if err := decoder.Decode(&extraDocument); !errors.Is(err, io.EOF) {
+		if err == nil {
+			return nil, fmt.Errorf("decode %q: multiple YAML documents are not supported", fileName)
+		}
+		return nil, fmt.Errorf("decode trailing content in %q: %w", fileName, err)
+	}
+
+	pairs := make([]compareSQLPair, 0, len(configuredPairs))
+	for i, configuredPair := range configuredPairs {
+		if strings.TrimSpace(configuredPair.Name) == "" {
+			return nil, fmt.Errorf("%s: case %d name cannot be empty", fileName, i+1)
+		}
+		if strings.TrimSpace(configuredPair.Expected.Query) == "" {
+			return nil, fmt.Errorf("%s: case %d (%s) expected.query cannot be empty", fileName, i+1, configuredPair.Name)
+		}
+		if strings.TrimSpace(configuredPair.Actual.Query) == "" {
+			return nil, fmt.Errorf("%s: case %d (%s) actual.query cannot be empty", fileName, i+1, configuredPair.Name)
+		}
+		pairs = append(pairs, compareSQLPair{
+			name: configuredPair.Name,
+			expected: compareSQL{
+				setupSQLs: append([]string(nil), configuredPair.Expected.SetupSQLs...),
+				query:     configuredPair.Expected.Query,
+			},
+			actual: compareSQL{
+				setupSQLs: append([]string(nil), configuredPair.Actual.SetupSQLs...),
+				query:     configuredPair.Actual.Query,
+			},
+		})
+	}
+	return pairs, nil
 }
 
 func printCompareSQLConfig(prefix string, configuredSQL compareSQL) {
@@ -564,7 +353,7 @@ func compareConfiguredFiles() (resultErr error) {
 		return err
 	}
 	timings.comparisonDuration = time.Since(comparisonStart)
-	writeCompareLog("[%s] Success", label)
+	writeCompareLog("[%s] Success: rows=%d", label, len(expected))
 	return nil
 }
 
@@ -873,7 +662,87 @@ func compareOneSQLPairWithLabel(ctx context.Context, db *sql.DB, pair compareSQL
 	)
 	resultErr = compareResultRows(expected, actual)
 	timings.comparisonDuration = time.Since(comparisonStart)
+	if resultErr != nil {
+		if writeErr := writeCompareFailureFiles(".", pair, expected, actual); writeErr != nil {
+			resultErr = errors.Join(resultErr, fmt.Errorf("write comparison failure files: %w", writeErr))
+		}
+	} else {
+		writeCompareLog("[%s] Success: rows=%d", label, len(expected))
+	}
 	return resultErr
+}
+
+func writeCompareFailureFiles(outputDir string, pair compareSQLPair, expected, actual []compareRow) error {
+	pairName := strings.TrimSpace(pair.name)
+	if pairName == "" {
+		return errors.New("compare SQL pair name cannot be empty when writing failure files")
+	}
+
+	expectedContent := formatCompareFailureFile(expected, pair.expected)
+	actualContent := formatCompareFailureFile(actual, pair.actual)
+
+	compareFailureFileMu.Lock()
+	defer compareFailureFileMu.Unlock()
+	expectedFile, err := writeUniqueCompareFailureFile(outputDir, pairName, "expected", expectedContent)
+	if err != nil {
+		return fmt.Errorf("write expected result file: %w", err)
+	}
+	actualFile, err := writeUniqueCompareFailureFile(outputDir, pairName, "actual", actualContent)
+	if err != nil {
+		return fmt.Errorf("write actual result file: %w", err)
+	}
+
+	writeCompareLog("Wrote mismatched expected result to %q", expectedFile)
+	writeCompareLog("Wrote mismatched actual result to %q", actualFile)
+	return nil
+}
+
+func writeUniqueCompareFailureFile(outputDir, pairName, side, content string) (string, error) {
+	for suffix := 0; ; suffix++ {
+		fileName := fmt.Sprintf("%s-%s.txt", pairName, side)
+		if suffix > 0 {
+			fileName = fmt.Sprintf("%s-%s(%d).txt", pairName, side, suffix)
+		}
+		filePath := filepath.Join(outputDir, fileName)
+		file, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+		if errors.Is(err, os.ErrExist) {
+			continue
+		}
+		if err != nil {
+			return "", fmt.Errorf("create %q: %w", filePath, err)
+		}
+
+		_, writeErr := file.WriteString(content)
+		closeErr := file.Close()
+		if writeErr != nil || closeErr != nil {
+			if removeErr := os.Remove(filePath); removeErr != nil {
+				return "", errors.Join(writeErr, closeErr, fmt.Errorf("remove incomplete file %q: %w", filePath, removeErr))
+			}
+			return "", errors.Join(writeErr, closeErr)
+		}
+		return filePath, nil
+	}
+}
+
+func formatCompareFailureFile(rows []compareRow, configuredSQL compareSQL) string {
+	var content strings.Builder
+	for _, row := range rows {
+		content.WriteString(formatCompareRow(row))
+		content.WriteByte('\n')
+	}
+
+	content.WriteString("\n===== SETUP SQLS =====\n")
+	if len(configuredSQL.setupSQLs) == 0 {
+		content.WriteString("(none)\n")
+	} else {
+		for i, setupSQL := range configuredSQL.setupSQLs {
+			fmt.Fprintf(&content, "-- setup SQL %d\n%s\n", i+1, setupSQL)
+		}
+	}
+	content.WriteString("\n===== SQL =====\n")
+	content.WriteString(configuredSQL.query)
+	content.WriteByte('\n')
+	return content.String()
 }
 
 func summarizeCompareSQLForLog(query string) string {

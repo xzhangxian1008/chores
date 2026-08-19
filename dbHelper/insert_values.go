@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"math/rand"
@@ -22,10 +23,10 @@ var (
 		params:  make([]string, 0),
 	}
 
-	insertTotalRowCnt = 500000
-	insertBatchSize   = 100
-	insertTableName   = "test"
-	insertTaskCount   = 5
+	insertTotalRowCnt = 20000000
+	insertBatchSize   = 1000
+	insertTableName   = "ct2"
+	insertTaskCount   = 20
 
 	insertColInfos = []colInfo{
 		{
@@ -36,7 +37,7 @@ var (
 			tp:              intType,
 			nullProbability: 1,
 			valuesGenerator: func() []string {
-				cnt := 1000000
+				cnt := 50000000
 				s := make([]string, 0, cnt)
 				for i := range cnt {
 					s = append(s, strconv.Itoa(i))
@@ -48,7 +49,7 @@ var (
 			tp:              decimalType,
 			nullProbability: 1,
 			valuesGenerator: func() []string {
-				cnt := 1000000
+				cnt := 50000000
 				s := make([]string, 0, cnt)
 				for i := range cnt {
 					s = append(s, fmt.Sprintf("%.2f", rand.Float32()+float32(i)))
@@ -60,7 +61,7 @@ var (
 			tp:              stringType,
 			nullProbability: 1,
 			valuesGenerator: func() []string {
-				cnt := 1000000
+				cnt := 50000000
 				asciiChars := "abcdefghijklmnopqrstuvwxyz1234567890"
 				s := make([]string, 0, cnt)
 				for i := range cnt {
@@ -79,7 +80,7 @@ var (
 			tp:              datetimeType,
 			nullProbability: 1,
 			valuesGenerator: func() []string {
-				cnt := 1000000
+				cnt := 50000000
 				s := make([]string, 0, cnt)
 				for range cnt {
 					s = append(s, fmt.Sprintf("%d-%d-%d %d:%d:%d", rand.Intn(500)+2000, rand.Intn(12)+1, rand.Intn(25)+1, rand.Intn(24), rand.Intn(60), rand.Intn(60)))
@@ -103,7 +104,7 @@ const (
 )
 
 const (
-	insertProgressInterval  = 10000
+	insertProgressInterval  = 50000
 	insertFailedSQLMaxRunes = 500
 )
 
@@ -132,7 +133,8 @@ type insertConfig struct {
 	tableName   string
 	colInfos    []colInfo
 
-	db *sql.DB
+	db  *sql.DB
+	ctx context.Context
 }
 
 type insertTask struct {
@@ -195,6 +197,10 @@ func generateOneRow(colInfos []colInfo) string {
 
 func startToInsertForOneTask(task insertTask) error {
 	db := task.config.db
+	ctx := task.config.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	batchSize := task.config.batchSize
 	tableName := task.config.tableName
 	colInfos := task.config.colInfos
@@ -205,6 +211,10 @@ func startToInsertForOneTask(task insertTask) error {
 
 	nextProgress := insertProgressInterval
 	for inserted := 0; inserted < task.insertCnt; {
+		if err := ctx.Err(); err != nil {
+			return fmt.Errorf("insert task %d canceled: %w", task.taskID, err)
+		}
+
 		rowCount := min(batchSize, task.insertCnt-inserted)
 		rows := make([]string, 0, rowCount)
 		for range rowCount {
@@ -212,7 +222,11 @@ func startToInsertForOneTask(task insertTask) error {
 		}
 
 		insertSQL := fmt.Sprintf("insert into %s values %s", tableName, strings.Join(rows, ", "))
-		if _, err := db.Exec(insertSQL); err != nil {
+		if _, err := db.ExecContext(ctx, insertSQL); err != nil {
+			if ctx.Err() != nil {
+				return fmt.Errorf("insert task %d canceled: %w", task.taskID, ctx.Err())
+			}
+			fmt.Printf("[insert task %d] Insert failed: %v\n", task.taskID, err)
 			fmt.Printf("[insert task %d] Failed SQL: %s\n", task.taskID, truncateInsertFailedSQL(insertSQL))
 			return fmt.Errorf("insert task %d: execute insert: %w", task.taskID, err)
 		}
@@ -351,10 +365,14 @@ func buildInsertTasks(config insertConfig, taskCount int) []insertTask {
 }
 
 func runInsertValues() error {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	config, err := initializeInsertConfig()
 	if err != nil {
 		return err
 	}
+	config.ctx = ctx
 	printInsertConfig(config)
 
 	insertTasks := buildInsertTasks(config, insertTaskCount)
@@ -390,6 +408,7 @@ func runInsertValues() error {
 			runErrMu.Lock()
 			if runErr == nil {
 				runErr = err
+				cancel()
 			}
 			runErrMu.Unlock()
 		})

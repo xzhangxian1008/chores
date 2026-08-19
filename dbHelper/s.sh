@@ -3,7 +3,7 @@
 SCRIPT_DIR=$(cd -- "$(dirname -- "$0")" && pwd)
 cd "$SCRIPT_DIR" || exit 1
 
-helperParam="--task insert --dbName tpcds10"
+helperParam="--task compare-results --dbName tpcds10"
 
 # Parameters:
 #   --task    insert, compare-results, or run-sqls

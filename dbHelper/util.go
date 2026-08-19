@@ -53,6 +53,10 @@ func getDB(config dbConfig) (*sql.DB, error) {
 	if err := db.Ping(); err != nil {
 		return nil, err
 	}
+
+	db.SetMaxIdleConns(20)
+	db.SetMaxOpenConns(100)
+	db.SetConnMaxIdleTime(10 * time.Minute)
 	return db, nil
 }
 
